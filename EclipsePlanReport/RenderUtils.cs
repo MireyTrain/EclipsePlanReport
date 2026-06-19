@@ -139,6 +139,9 @@ namespace EclipsePlanReport
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 encoder.Save(fileStream);
             }
+
+            if (visual.Drawing != null)
+                VectorPdfPageStore.Register(filename, visual.Drawing.Clone(), width, height);
         }
 
         public static string MakeFilenameValid(string s)

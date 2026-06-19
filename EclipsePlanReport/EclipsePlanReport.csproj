@@ -70,6 +70,7 @@
     <Compile Include="DvhRenderer.cs" />
     <Compile Include="EclipseViewRenderer.cs" />
     <Compile Include="PdfWriter.cs" />
+    <Compile Include="VectorPdfPageStore.cs" />
     <Compile Include="ReportEngine.cs" />
   </ItemGroup>
   <ItemGroup>
