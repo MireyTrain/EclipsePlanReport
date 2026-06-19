@@ -41,6 +41,7 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="Microsoft.CSharp" />
@@ -64,6 +65,7 @@
     <Compile Include="TemplateRepository.cs" />
     <Compile Include="ReflectionUtils.cs" />
     <Compile Include="RenderUtils.cs" />
+    <Compile Include="GlbManikinRenderer.cs" />
     <Compile Include="MeshSlicer.cs" />
     <Compile Include="PlanPageRenderer.cs" />
     <Compile Include="SliceRenderer.cs" />
@@ -76,6 +78,10 @@
   <ItemGroup>
     <None Include="app.config" />
     <None Include="report_templates.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\bildchen\maennchen_linke_hand_rot.glb">
+      <Link>bildchen\maennchen_linke_hand_rot.glb</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

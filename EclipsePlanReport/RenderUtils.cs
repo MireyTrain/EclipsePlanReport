@@ -693,6 +693,10 @@ namespace EclipsePlanReport
 
         public static void DrawManikin(DrawingContext dc, double x, double y, double height, ManikinView view)
         {
+            DrawManikinAxes(dc, x, y, height, view);
+            if (GlbManikinRenderer.TryDraw(dc, x, y, height, view))
+                return;
+
             switch (view)
             {
                 case ManikinView.Frontal:
@@ -749,8 +753,6 @@ namespace EclipsePlanReport
 
         private static void DrawManikinThreeD(DrawingContext dc, double x, double y, double height)
         {
-            DrawManikinAxes(dc, x, y, height, ManikinView.ThreeD);
-
             Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
             Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
             Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));
@@ -776,14 +778,11 @@ namespace EclipsePlanReport
 
         private static void DrawManikinFrontal(DrawingContext dc, double x, double y, double height)
         {
-            DrawManikinAxes(dc, x, y, height, ManikinView.Frontal);
             DrawStandingManikin(dc, x + height * 0.16, y + height * 0.42, height * 0.48, false);
         }
 
         private static void DrawManikinSagittal(DrawingContext dc, double x, double y, double height)
         {
-            DrawManikinAxes(dc, x, y, height, ManikinView.Sagittal);
-
             Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
             Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
             Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));
@@ -800,8 +799,6 @@ namespace EclipsePlanReport
 
         private static void DrawManikinTransversal(DrawingContext dc, double x, double y, double height)
         {
-            DrawManikinAxes(dc, x, y, height, ManikinView.Transversal);
-
             Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
             Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
             Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));

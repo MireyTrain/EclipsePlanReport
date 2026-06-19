@@ -439,7 +439,7 @@ namespace EclipsePlanReport
                 dc.DrawText(originText, new Point(pageW / 2.0 - originText.Width / 2.0, infoY + 22));
 
                 // Orientierungsfigur
-                RenderUtils.DrawManikin(dc, 34, 1136, 64);
+                RenderUtils.DrawManikin(dc, 34, 1136, 64, RenderUtils.ManikinView.Transversal);
 
                 // --- Fusszeile ---
                 dc.DrawLine(linePen, new Point(24, 1206), new Point(pageW - 24, 1206));

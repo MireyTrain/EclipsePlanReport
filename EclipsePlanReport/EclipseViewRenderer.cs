@@ -230,7 +230,8 @@ namespace EclipsePlanReport
                     },
                     string.Format(culture, "Z: {0:+0.00;-0.00;0.00} cm", SliceRenderer.ComputeEclipseZcm(image, zc)),
                     BuildMaxDoseLabel(transDose),
-                    typeface);
+                    typeface,
+                    RenderUtils.ManikinView.Transversal);
 
                 // --- sagittal (oben rechts) ---
                 DrawPlanarView(dc, q2,
@@ -254,7 +255,8 @@ namespace EclipsePlanReport
                     },
                     string.Format(culture, "X: {0:+0.00;-0.00;0.00} cm", userRel.x),
                     BuildMaxDoseLabel(sagDose),
-                    typeface);
+                    typeface,
+                    RenderUtils.ManikinView.Sagittal);
 
                 // --- frontal (unten links) ---
                 DrawPlanarView(dc, q3,
@@ -278,7 +280,8 @@ namespace EclipsePlanReport
                     },
                     string.Format(culture, "Y: {0:+0.00;-0.00;0.00} cm", userRel.y),
                     BuildMaxDoseLabel(froDose),
-                    typeface);
+                    typeface,
+                    RenderUtils.ManikinView.Frontal);
 
                 // --- BEV des Setup-Felds mit DRR + ZV-Silhouette, sonst Plan-Info-Panel (unten rechts) ---
                 bool bevDrawn = false;
@@ -479,7 +482,8 @@ namespace EclipsePlanReport
             Action<DrawingContext, double> drawOverlayInMm,
             string positionLabel,
             string maxDoseLabel,
-            Typeface typeface)
+            Typeface typeface,
+            RenderUtils.ManikinView manikinView)
         {
             double titleHeight = 26;
             Pen borderPen = new Pen(Theme.SeparatorLine, 1.0);
@@ -553,7 +557,7 @@ namespace EclipsePlanReport
             }
 
             // Orientierungsfigur
-            RenderUtils.DrawManikin(dc, content.X + 10, content.Y + content.Height - 56, 46);
+            RenderUtils.DrawManikin(dc, content.X + 10, content.Y + content.Height - 56, 46, manikinView);
 
             return content;
         }
@@ -897,7 +901,8 @@ namespace EclipsePlanReport
                 },
                 positionLabel,
                 "",
-                typeface);
+                typeface,
+                RenderUtils.ManikinView.ThreeD);
 
             return true;
         }
