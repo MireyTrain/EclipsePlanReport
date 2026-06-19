@@ -453,11 +453,11 @@ namespace EclipsePlanReport
 
                 Rect r = drawing.Rect;
                 sb.AppendFormat(RenderUtils.Num,
-                    "q {0:0.###} 0 0 {1:0.###} {2:0.###} {3:0.###} cm /{4} Do Q\n",
+                    "q {0:0.###} 0 0 -{1:0.###} {2:0.###} {3:0.###} cm /{4} Do Q\n",
                     r.Width,
                     r.Height,
                     r.X,
-                    r.Y,
+                    r.Y + r.Height,
                     name);
             }
 
@@ -482,6 +482,7 @@ namespace EclipsePlanReport
 
                 WriteStrokeColor(solid.Color);
                 sb.AppendFormat(RenderUtils.Num, "{0:0.###} w\n", pen.Thickness);
+                sb.Append("1 J 1 j\n");
                 if (pen.DashStyle != null && pen.DashStyle.Dashes != null && pen.DashStyle.Dashes.Count > 0)
                 {
                     string[] dashes = pen.DashStyle.Dashes.Select(d => (d * pen.Thickness).ToString("0.###", RenderUtils.Num)).ToArray();
@@ -521,7 +522,7 @@ namespace EclipsePlanReport
                 if (geometry == null || geometry.IsEmpty())
                     return;
 
-                PathGeometry path = geometry.GetFlattenedPathGeometry(0.25, ToleranceType.Absolute);
+                PathGeometry path = geometry.GetFlattenedPathGeometry(0.10, ToleranceType.Absolute);
                 foreach (PathFigure figure in path.Figures)
                 {
                     sb.AppendFormat(RenderUtils.Num, "{0:0.###} {1:0.###} m\n", figure.StartPoint.X, figure.StartPoint.Y);
@@ -539,6 +540,41 @@ namespace EclipsePlanReport
                         {
                             foreach (Point point in polyLine.Points)
                                 sb.AppendFormat(RenderUtils.Num, "{0:0.###} {1:0.###} l\n", point.X, point.Y);
+                            continue;
+                        }
+
+                        BezierSegment bezier = segment as BezierSegment;
+                        if (bezier != null)
+                        {
+                            sb.AppendFormat(RenderUtils.Num, "{0:0.###} {1:0.###} {2:0.###} {3:0.###} {4:0.###} {5:0.###} c\n",
+                                bezier.Point1.X, bezier.Point1.Y,
+                                bezier.Point2.X, bezier.Point2.Y,
+                                bezier.Point3.X, bezier.Point3.Y);
+                            continue;
+                        }
+
+                        PolyBezierSegment polyBezier = segment as PolyBezierSegment;
+                        if (polyBezier != null)
+                        {
+                            for (int i = 0; i + 2 < polyBezier.Points.Count; i += 3)
+                            {
+                                Point p1 = polyBezier.Points[i];
+                                Point p2 = polyBezier.Points[i + 1];
+                                Point p3 = polyBezier.Points[i + 2];
+                                sb.AppendFormat(RenderUtils.Num, "{0:0.###} {1:0.###} {2:0.###} {3:0.###} {4:0.###} {5:0.###} c\n",
+                                    p1.X, p1.Y, p2.X, p2.Y, p3.X, p3.Y);
+                            }
+                            continue;
+                        }
+
+                        QuadraticBezierSegment quadratic = segment as QuadraticBezierSegment;
+                        if (quadratic != null)
+                        {
+                            Point current = GetLastPoint(figure.StartPoint, figure.Segments, segment);
+                            Point c1 = new Point(current.X + (2.0 / 3.0) * (quadratic.Point1.X - current.X), current.Y + (2.0 / 3.0) * (quadratic.Point1.Y - current.Y));
+                            Point c2 = new Point(quadratic.Point2.X + (2.0 / 3.0) * (quadratic.Point1.X - quadratic.Point2.X), quadratic.Point2.Y + (2.0 / 3.0) * (quadratic.Point1.Y - quadratic.Point2.Y));
+                            sb.AppendFormat(RenderUtils.Num, "{0:0.###} {1:0.###} {2:0.###} {3:0.###} {4:0.###} {5:0.###} c\n",
+                                c1.X, c1.Y, c2.X, c2.Y, quadratic.Point2.X, quadratic.Point2.Y);
                         }
                     }
                     if (figure.IsClosed)
@@ -555,6 +591,42 @@ namespace EclipsePlanReport
                 if (group != null)
                     return group.FillRule;
                 return FillRule.EvenOdd;
+            }
+
+            private Point GetLastPoint(Point start, PathSegmentCollection segments, PathSegment beforeSegment)
+            {
+                Point current = start;
+                foreach (PathSegment segment in segments)
+                {
+                    if (ReferenceEquals(segment, beforeSegment))
+                        return current;
+
+                    LineSegment line = segment as LineSegment;
+                    if (line != null)
+                    {
+                        current = line.Point;
+                        continue;
+                    }
+
+                    PolyLineSegment polyLine = segment as PolyLineSegment;
+                    if (polyLine != null && polyLine.Points.Count > 0)
+                    {
+                        current = polyLine.Points[polyLine.Points.Count - 1];
+                        continue;
+                    }
+
+                    BezierSegment bezier = segment as BezierSegment;
+                    if (bezier != null)
+                    {
+                        current = bezier.Point3;
+                        continue;
+                    }
+
+                    PolyBezierSegment polyBezier = segment as PolyBezierSegment;
+                    if (polyBezier != null && polyBezier.Points.Count > 0)
+                        current = polyBezier.Points[polyBezier.Points.Count - 1];
+                }
+                return current;
             }
         }
     }
