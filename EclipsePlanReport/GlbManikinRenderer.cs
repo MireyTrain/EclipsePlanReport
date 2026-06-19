@@ -204,7 +204,7 @@ namespace EclipsePlanReport
                 case RenderUtils.ManikinView.Frontal:
                     return p.Y;
                 case RenderUtils.ManikinView.Sagittal:
-                    return -p.X;
+                    return p.X;
                 case RenderUtils.ManikinView.Transversal:
                     return -p.Z;
                 case RenderUtils.ManikinView.ThreeD:
