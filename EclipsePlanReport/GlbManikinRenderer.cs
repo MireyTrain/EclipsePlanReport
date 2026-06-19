@@ -160,9 +160,9 @@ namespace EclipsePlanReport
             double maxY = projected.Max(p => p.Hull.Max(q => q.Y));
             double w = Math.Max(0.001, maxX - minX);
             double h = Math.Max(0.001, maxY - minY);
-            double scale = height * 0.80 / Math.Max(w, h);
+            double scale = height * 0.58 / Math.Max(w, h);
             double offsetX = x + height * 0.45 - (minX + maxX) * scale / 2.0;
-            double offsetY = y + height * 0.55 - (minY + maxY) * scale / 2.0;
+            double offsetY = y + height * 0.68 - (minY + maxY) * scale / 2.0;
 
             foreach (ProjectedPart part in projected.OrderBy(p => p.Depth))
             {
@@ -186,14 +186,14 @@ namespace EclipsePlanReport
             switch (view)
             {
                 case RenderUtils.ManikinView.Frontal:
-                    return new Point(p.X, -p.Z);
+                    return new Point(-p.X, -p.Z);
                 case RenderUtils.ManikinView.Sagittal:
                     return new Point(p.Y, -p.Z);
                 case RenderUtils.ManikinView.Transversal:
-                    return new Point(p.X, -p.Y);
+                    return new Point(-p.X, -p.Y);
                 case RenderUtils.ManikinView.ThreeD:
                 default:
-                    return new Point(p.X - 0.42 * p.Y, -p.Z + 0.28 * p.Y);
+                    return new Point(-p.X - 0.42 * p.Y, -p.Z + 0.28 * p.Y);
             }
         }
 

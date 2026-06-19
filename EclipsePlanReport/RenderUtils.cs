@@ -728,26 +728,26 @@ namespace EclipsePlanReport
 
             if (view == ManikinView.Frontal)
             {
-                dc.DrawLine(red, new Point(x + height * 0.48, y + height * 0.02), new Point(x + height * 0.48, y + height * 0.38));
-                dc.DrawLine(yellow, new Point(x + height * 0.48, y + height * 0.38), new Point(x + height * 0.83, y + height * 0.38));
+                dc.DrawLine(red, new Point(x + height * 0.48, y + height * 0.02), new Point(x + height * 0.48, y + height * 0.26));
+                dc.DrawLine(yellow, new Point(x + height * 0.48, y + height * 0.26), new Point(x + height * 0.78, y + height * 0.26));
             }
             else if (view == ManikinView.Sagittal)
             {
-                dc.DrawLine(red, new Point(x + height * 0.50, y + height * 0.02), new Point(x + height * 0.50, y + height * 0.44));
-                dc.DrawLine(green, new Point(x + height * 0.12, y + height * 0.44), new Point(x + height * 0.50, y + height * 0.44));
+                dc.DrawLine(red, new Point(x + height * 0.50, y + height * 0.02), new Point(x + height * 0.50, y + height * 0.28));
+                dc.DrawLine(green, new Point(x + height * 0.18, y + height * 0.28), new Point(x + height * 0.50, y + height * 0.28));
             }
             else if (view == ManikinView.Transversal)
             {
-                dc.DrawLine(green, new Point(x + height * 0.17, y + height * 0.45), new Point(x + height * 0.55, y + height * 0.45));
-                dc.DrawLine(yellow, new Point(x + height * 0.55, y + height * 0.45), new Point(x + height * 0.86, y + height * 0.45));
-                dc.DrawLine(red, new Point(x + height * 0.55, y + height * 0.16), new Point(x + height * 0.55, y + height * 0.45));
+                dc.DrawLine(green, new Point(x + height * 0.20, y + height * 0.26), new Point(x + height * 0.52, y + height * 0.26));
+                dc.DrawLine(yellow, new Point(x + height * 0.52, y + height * 0.26), new Point(x + height * 0.82, y + height * 0.26));
+                dc.DrawLine(red, new Point(x + height * 0.52, y + height * 0.02), new Point(x + height * 0.52, y + height * 0.26));
             }
             else
             {
-                Point o = new Point(x + height * 0.58, y + height * 0.30);
-                dc.DrawLine(red, o, new Point(o.X - height * 0.08, o.Y - height * 0.29));
-                dc.DrawLine(yellow, o, new Point(o.X + height * 0.27, o.Y + height * 0.03));
-                dc.DrawLine(green, o, new Point(o.X - height * 0.20, o.Y + height * 0.18));
+                Point o = new Point(x + height * 0.58, y + height * 0.21);
+                dc.DrawLine(red, o, new Point(o.X - height * 0.07, o.Y - height * 0.20));
+                dc.DrawLine(yellow, o, new Point(o.X + height * 0.25, o.Y + height * 0.02));
+                dc.DrawLine(green, o, new Point(o.X - height * 0.18, o.Y + height * 0.12));
             }
         }
 
