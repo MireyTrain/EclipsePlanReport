@@ -160,9 +160,9 @@ namespace EclipsePlanReport
             double maxY = projected.Max(p => p.Hull.Max(q => q.Y));
             double w = Math.Max(0.001, maxX - minX);
             double h = Math.Max(0.001, maxY - minY);
-            double scale = height * 0.58 / Math.Max(w, h);
+            double scale = height * 0.82 / Math.Max(w, h);
             double offsetX = x + height * 0.45 - (minX + maxX) * scale / 2.0;
-            double offsetY = y + height * 0.68 - (minY + maxY) * scale / 2.0;
+            double offsetY = y + height * 0.53 - (minY + maxY) * scale / 2.0;
 
             foreach (ProjectedPart part in projected.OrderBy(p => p.Depth))
             {
