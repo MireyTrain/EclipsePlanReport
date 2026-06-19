@@ -30,6 +30,9 @@ Pro ausgewaehltem Plan erzeugt die Anwendung, soweit verfuegbar:
 
 Summenplaene werden unterstuetzt. Relative Isodosen-Templates werden fuer Summenplaene nicht verwendet, da dort keine eindeutige 100%-Referenz angenommen wird.
 
+## Bekannte Hinweise
+
+- Im Isodosen-Editor werden relativ eingegebene Werte mit der aktuellen Plangesamtdosis in absolute Gy-Werte umgerechnet und beim Speichern als Template zusammen mit dem Prozentwert abgelegt. Beim Rendern hat der absolute Gy-Wert Vorrang. Solche gespeicherten Templates sind dadurch faktisch plan- bzw. dosisbezogen und skalieren nicht automatisch mit einer anderen Verordnung.
 ## Orientierung
 
 Die Bilddarstellung wird zentral ueber `Image.XDirection`, `Image.YDirection`, `Image.ZDirection`, `Image.Origin` und `Image.UserOrigin` abgeleitet. Fuer transversale Schichten gilt die klinische Druckkonvention: die Tischseite liegt unten bei 6 Uhr.

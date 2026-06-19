@@ -377,6 +377,9 @@ namespace EclipsePlanReport
 
         public static string GetTransversalRightLabelForTableDown(string tableSideLabel, string patientPositionCode)
         {
+            if (IsFeetFirstSupinePosition(patientPositionCode))
+                return "R";
+
             if (IsFeetFirstDecubitusPosition(patientPositionCode))
             {
                 switch (tableSideLabel)
@@ -389,6 +392,40 @@ namespace EclipsePlanReport
             return GetTransversalRightLabelForTableDown(tableSideLabel);
         }
 
+        public static bool TryGetPatientDirectionVector(string label, out VVector vector)
+        {
+            switch (label)
+            {
+                case "L":
+                    vector = new VVector(1, 0, 0);
+                    return true;
+                case "R":
+                    vector = new VVector(-1, 0, 0);
+                    return true;
+                case "P":
+                    vector = new VVector(0, 1, 0);
+                    return true;
+                case "A":
+                    vector = new VVector(0, -1, 0);
+                    return true;
+                case "H":
+                    vector = new VVector(0, 0, 1);
+                    return true;
+                case "F":
+                    vector = new VVector(0, 0, -1);
+                    return true;
+                default:
+                    vector = new VVector(0, 0, 0);
+                    return false;
+            }
+        }
+
+        public static VVector GetPatientDirectionVector(string label)
+        {
+            VVector vector;
+            return TryGetPatientDirectionVector(label, out vector) ? vector : new VVector(0, 1, 0);
+        }
+
         public static bool IsPronePosition(string patientPositionCode)
         {
             return patientPositionCode == "HFP" || patientPositionCode == "FFP";
@@ -399,6 +436,11 @@ namespace EclipsePlanReport
             return patientPositionCode == "FFDL" || patientPositionCode == "FFDR";
         }
 
+        public static bool IsFeetFirstSupinePosition(string patientPositionCode)
+        {
+            return patientPositionCode == "FFS";
+        }
+
         public static bool UsesMirroredDisplayHandedness(string patientPositionCode)
         {
             return IsPronePosition(patientPositionCode) || IsFeetFirstDecubitusPosition(patientPositionCode);
@@ -406,7 +448,28 @@ namespace EclipsePlanReport
 
         public static string GetFrontalRightLabel(string patientPositionCode)
         {
+            if (IsFeetFirstSupinePosition(patientPositionCode))
+                return "R";
+
+            if (IsFeetFirstDecubitusPosition(patientPositionCode))
+                return GetTransversalRightLabelForTableDown(GetTableSideLabel(patientPositionCode), patientPositionCode);
+
             return UsesMirroredDisplayHandedness(patientPositionCode) ? "R" : "L";
+        }
+
+        public static string GetFrontalDownLabel(string patientPositionCode)
+        {
+            return IsFeetFirstSupinePosition(patientPositionCode) || IsFeetFirstDecubitusPosition(patientPositionCode) ? "H" : "F";
+        }
+
+        public static string GetSagittalRightLabel(string patientPositionCode)
+        {
+            return IsFeetFirstSupinePosition(patientPositionCode) ? "A" : "P";
+        }
+
+        public static string GetSagittalDownLabel(string patientPositionCode)
+        {
+            return IsFeetFirstSupinePosition(patientPositionCode) ? "H" : "F";
         }
 
         public static Matrix GetNaturalToDisplayMatrix(DisplayTransform transform, double width, double height)
@@ -693,9 +756,109 @@ namespace EclipsePlanReport
 
         public static void DrawManikin(DrawingContext dc, double x, double y, double height, ManikinView view)
         {
+            string rightLabel;
+            string downLabel;
+            if (TryGetDefaultManikinDisplay(view, out rightLabel, out downLabel))
+            {
+                DrawManikin(dc, x, y, height, view, rightLabel, downLabel);
+                return;
+            }
+
             if (GlbManikinRenderer.TryDraw(dc, x, y, height, view))
                 return;
 
+            DrawFallbackManikin(dc, x, y, height, view);
+        }
+
+        public static void DrawManikin(DrawingContext dc, double x, double y, double height, ManikinView view, DisplayTransform displayTransform)
+        {
+            if (displayTransform == null)
+            {
+                DrawManikin(dc, x, y, height, view);
+                return;
+            }
+
+            DrawManikin(dc, x, y, height, view, displayTransform.RightLabel, displayTransform.BottomLabel);
+        }
+
+        public static void DrawManikin(DrawingContext dc, double x, double y, double height, ManikinView view, string rightLabel, string downLabel)
+        {
+            if (GlbManikinRenderer.TryDraw(dc, x, y, height, rightLabel, downLabel))
+                return;
+
+            DrawFallbackManikinAligned(dc, x, y, height, view, rightLabel, downLabel);
+        }
+
+        private static bool TryGetDefaultManikinDisplay(ManikinView view, out string rightLabel, out string downLabel)
+        {
+            switch (view)
+            {
+                case ManikinView.Frontal:
+                    rightLabel = "L";
+                    downLabel = "F";
+                    return true;
+                case ManikinView.Sagittal:
+                    rightLabel = "P";
+                    downLabel = "F";
+                    return true;
+                case ManikinView.Transversal:
+                    rightLabel = "L";
+                    downLabel = "P";
+                    return true;
+                default:
+                    rightLabel = "";
+                    downLabel = "";
+                    return false;
+            }
+        }
+
+        private static void DrawFallbackManikinAligned(DrawingContext dc, double x, double y, double height, ManikinView view, string rightLabel, string downLabel)
+        {
+            string baseRightLabel;
+            string baseDownLabel;
+            VVector baseRight, baseDown, targetRight, targetDown;
+            if (!TryGetDefaultManikinDisplay(view, out baseRightLabel, out baseDownLabel) ||
+                !TryGetPatientDirectionVector(baseRightLabel, out baseRight) ||
+                !TryGetPatientDirectionVector(baseDownLabel, out baseDown) ||
+                !TryGetPatientDirectionVector(rightLabel, out targetRight) ||
+                !TryGetPatientDirectionVector(downLabel, out targetDown))
+            {
+                DrawFallbackManikin(dc, x, y, height, view);
+                return;
+            }
+
+            double m11 = Dot(baseRight, targetRight);
+            double m12 = Dot(baseRight, targetDown);
+            double m21 = Dot(baseDown, targetRight);
+            double m22 = Dot(baseDown, targetDown);
+            if (Math.Abs(m11) + Math.Abs(m12) + Math.Abs(m21) + Math.Abs(m22) < 0.5)
+            {
+                DrawFallbackManikin(dc, x, y, height, view);
+                return;
+            }
+
+            double cx = x + height * 0.5;
+            double cy = y + height * 0.5;
+            Matrix matrix = new Matrix(
+                m11,
+                m12,
+                m21,
+                m22,
+                cx - (cx * m11 + cy * m21),
+                cy - (cx * m12 + cy * m22));
+
+            dc.PushTransform(new MatrixTransform(matrix));
+            DrawFallbackManikin(dc, x, y, height, view);
+            dc.Pop();
+        }
+
+        private static double Dot(VVector a, VVector b)
+        {
+            return a.x * b.x + a.y * b.y + a.z * b.z;
+        }
+
+        private static void DrawFallbackManikin(DrawingContext dc, double x, double y, double height, ManikinView view)
+        {
             switch (view)
             {
                 case ManikinView.Frontal:

@@ -271,7 +271,7 @@ namespace EclipsePlanReport
                     sliceContext.PageNumber = i + 1;
                     sliceContext.PageCount = sliceIndices.Count;
                     var sliceViewBounds = SliceRenderer.GetSliceBodyViewBounds(body, ss.Image, z);
-                    SliceRenderer.RenderSlicePage(ss.Image, z, ss, planningItem, template, body, slicePath, sliceViewBounds, sliceContext, log);
+                    SliceRenderer.RenderSlicePage(ss.Image, z, ss, planningItem, template, target, body, slicePath, sliceViewBounds, sliceContext, log);
                     AddIfExists(generatedImagePaths, slicePath);
                 }
                 catch (Exception e)
@@ -295,77 +295,6 @@ namespace EclipsePlanReport
         }
 
         // ---------- Plan-/Template-/Zielstruktur-Aufloesung ----------
-
-        /// <summary>
-        /// Schnelle Vorschau fuer einen einzelnen Plan: Planberichtseite + DVH +
-        /// Statistik (keine CT-Schichten, kein PDF). Liefert die PNG-Pfade.
-        /// </summary>
-        public List<string> GeneratePreview(Patient patient, PlanRequest request, List<ReportTemplate> templates, string outputDirectory)
-        {
-            var files = new List<string>();
-
-            Course course = patient.Courses.FirstOrDefault(c =>
-                c.Id.Equals(request.CourseId, StringComparison.OrdinalIgnoreCase));
-            if (course == null)
-            {
-                log(string.Format("Vorschau: Kurs {0} nicht gefunden.", request.CourseId));
-                return files;
-            }
-
-            PlanningItem planningItem = FindPlanningItem(course, request.PlanId);
-            if (planningItem == null)
-            {
-                log(string.Format("Vorschau: Plan {0} nicht gefunden.", request.PlanId));
-                return files;
-            }
-
-            ReportTemplate template = ResolveTemplate(templates, planningItem, request.TemplateId);
-            if (planningItem is PlanSum && template.IsRelative)
-                template = templates.FirstOrDefault(t => !t.IsRelative) ?? template;
-            if (request.CustomIsodoses != null && request.CustomIsodoses.Any())
-                template = CloneTemplateWithIsodoses(template, request.CustomIsodoses);
-
-            StructureSet ss = planningItem.StructureSet;
-            if (ss == null || ss.Image == null)
-            {
-                log("Vorschau: kein gueltiges StructureSet/Bild.");
-                return files;
-            }
-
-            string previewFolder = Path.Combine(outputDirectory, "_Vorschau");
-            Directory.CreateDirectory(previewFolder);
-            string planItemId = PlanPageRenderer.GetPlanningItemId(planningItem);
-
-            log(string.Format("Vorschau fuer {0} ({1})...", planItemId, template.DisplayName));
-
-            if (!(planningItem is PlanSum))
-            {
-                string planReportPath = Path.Combine(previewFolder, RenderUtils.MakeFilenameValid(string.Format("{0}_{1}_Vorschau_Planbericht.png", patient.Id, planItemId)));
-                try
-                {
-                    PlanPageRenderer.RenderPlanReportPage(patient, course, planningItem, ss, planReportPath);
-                    if (File.Exists(planReportPath))
-                        files.Add(planReportPath);
-                }
-                catch (Exception e)
-                {
-                    log("Vorschau Planbericht fehlgeschlagen: " + e.Message);
-                }
-            }
-
-            try
-            {
-                string dvhPath = Path.Combine(previewFolder, RenderUtils.MakeFilenameValid(string.Format("{0}_{1}_Vorschau_DVH.png", patient.Id, planItemId)));
-                files.AddRange(DvhRenderer.RenderDvhPages(patient, planningItem, ss, template, request.SelectedDvhStructureIds, dvhPath, log));
-            }
-            catch (Exception e)
-            {
-                log("Vorschau DVH fehlgeschlagen: " + e.Message);
-            }
-
-            log(string.Format("Vorschau fertig: {0} Seite(n).", files.Count));
-            return files;
-        }
 
         public static PlanningItem FindPlanningItem(Course course, string planId)
         {

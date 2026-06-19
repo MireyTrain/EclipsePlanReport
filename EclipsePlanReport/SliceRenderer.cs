@@ -184,6 +184,7 @@ namespace EclipsePlanReport
             StructureSet structureSet,
             PlanningItem planningItem,
             ReportTemplate template,
+            Structure sliceTarget,
             Structure body,
             string filename,
             Rect? bodyBounds,
@@ -196,16 +197,11 @@ namespace EclipsePlanReport
             int dosePlaneIndex = FindDosePlaneIndexForImageSlice(planningItem.Dose, image, sliceZ);
             double[,] doseData = GetDoseData(planningItem, dosePlaneIndex);
 
-            double currentWidth = bodyBounds.HasValue ? bodyBounds.Value.Width : width;
-            double currentHeight = bodyBounds.HasValue ? bodyBounds.Value.Height : height;
-            double maxDim = Math.Max(currentWidth, currentHeight);
-
-            double desiredSize = 888;
-            double scale = desiredSize / maxDim;
-            if (scale < 1.0) scale = 1.0;
-
-            int renderWidth = (int)(currentWidth * scale);
-            int renderHeight = (int)(currentHeight * scale);
+            Rect? viewBounds = bodyBounds.HasValue
+                ? NormalizeImageBounds(bodyBounds.Value, image)
+                : (Rect?)null;
+            double currentWidth = viewBounds.HasValue ? viewBounds.Value.Width : width;
+            double currentHeight = viewBounds.HasValue ? viewBounds.Value.Height : height;
 
             string positionCode = context != null ? context.PatientPositionCode : "";
             string tableSideLabel = RenderUtils.GetTableSideLabel(positionCode);
@@ -218,115 +214,17 @@ namespace EclipsePlanReport
             if (displayTransform.IsFallback && log != null)
                 log(string.Format("  Warnung: Transversal-Orientierung fuer {0} nicht sicher bestimmbar - verwende native Bildachsen.", positionCode));
 
-            // ---- CT + Zielkonturen + Isodosen in ein Inhalts-Bitmap rendern ----
+            BitmapSource ctBitmap = CreateCTSliceBitmap(
+                image,
+                sliceZ,
+                viewBounds.HasValue ? (int)viewBounds.Value.X : 0,
+                viewBounds.HasValue ? (int)viewBounds.Value.Y : 0,
+                (int)currentWidth,
+                (int)currentHeight);
+
+            // ---- CT als Raster, Zielkonturen + Isodosen als Vektorpfade rendern ----
             var dose = planningItem.Dose;
             bool relativeSkipped = false;
-
-            DrawingVisual contentVisual = new DrawingVisual();
-            using (DrawingContext dc = contentVisual.RenderOpen())
-            {
-                dc.PushTransform(new ScaleTransform(scale, scale));
-
-                // CT nur innerhalb der BODY-Kontur zeigen, damit aussen herum kein
-                // schwarzer Kasten entsteht (Seitenhintergrund scheint durch).
-                Geometry bodyClip = BuildBodyClip(body, image, sliceZ, bodyBounds);
-                if (bodyClip != null)
-                    dc.PushClip(bodyClip);
-
-                if (bodyBounds.HasValue)
-                {
-                    DrawCTSlice(dc, image, sliceZ,
-                        (int)bodyBounds.Value.X,
-                        (int)bodyBounds.Value.Y,
-                        (int)bodyBounds.Value.Width,
-                        (int)bodyBounds.Value.Height);
-                }
-                else
-                {
-                    DrawCTSlice(dc, image, sliceZ, 0, 0, width, height);
-                }
-
-                if (structureSet != null)
-                {
-                    var targetStructures = structureSet.Structures
-                        .Where(s =>
-                            !s.IsEmpty &&
-                            RenderUtils.MatchesAnyPattern(s.Id, template.TargetPatterns) &&
-                            s.GetContoursOnImagePlane(sliceZ).Any());
-
-                    foreach (var structure in targetStructures)
-                    {
-                        Color structureColor = Color.FromRgb(structure.Color.R, structure.Color.G, structure.Color.B);
-                        Pen pen = new Pen(new SolidColorBrush(structureColor), 0.6 / scale);
-
-                        foreach (var segment in structure.GetContoursOnImagePlane(sliceZ))
-                        {
-                            if (segment.Length <= 1)
-                                continue;
-
-                            StreamGeometry geometry = new StreamGeometry();
-                            using (StreamGeometryContext sgc = geometry.Open())
-                            {
-                                sgc.BeginFigure(ConvertToZoomedPoint(segment[0], image, bodyBounds), false, true);
-                                sgc.PolyLineTo(
-                                    segment.Skip(1)
-                                        .Select(p => ConvertToZoomedPoint(p, image, bodyBounds))
-                                        .ToArray(),
-                                    true,
-                                    false);
-                            }
-                            dc.DrawGeometry(null, pen, geometry);
-                        }
-                    }
-                }
-
-                // Isodosen
-                Func<double, double, Point> mapDoseToView = (ix, iy) =>
-                {
-                    double offXmm = ix * dose.XRes;
-                    double offYmm = iy * dose.YRes;
-                    double offZmm = dosePlaneIndex * dose.ZRes;
-
-                    VVector patientPoint = new VVector(
-                        dose.Origin.x + offXmm * dose.XDirection.x + offYmm * dose.YDirection.x + offZmm * dose.ZDirection.x,
-                        dose.Origin.y + offXmm * dose.XDirection.y + offYmm * dose.YDirection.y + offZmm * dose.ZDirection.y,
-                        dose.Origin.z + offXmm * dose.XDirection.z + offYmm * dose.YDirection.z + offZmm * dose.ZDirection.z);
-
-                    Point p = RenderUtils.ProjectToImagePixel(patientPoint, image);
-                    if (bodyBounds.HasValue)
-                        return new Point(p.X - bodyBounds.Value.X, p.Y - bodyBounds.Value.Y);
-                    return p;
-                };
-
-                foreach (var iso in template.Isodoses)
-                {
-                    double doseGy = ResolveIsodoseGy(iso, planningItem);
-                    if (doseGy <= 0)
-                    {
-                        if (iso.RelativeDosePercent > 0 && planningItem is PlanSum)
-                            relativeSkipped = true;
-                        continue;
-                    }
-
-                    double effThickness = iso.Thickness / scale;
-                    if (effThickness < 0.6) effThickness = 0.6;
-                    Pen pen = new Pen(new SolidColorBrush(iso.Color), effThickness);
-
-                    RenderUtils.DrawIsoLines(dc, doseData, doseGy, pen, mapDoseToView);
-                }
-
-                if (bodyClip != null)
-                    dc.Pop(); // Body-Clip
-
-                dc.Pop();
-            }
-
-            if (relativeSkipped && log != null)
-                log("  Hinweis: relative Isodosen werden bei Summenplaenen nicht gezeichnet.");
-
-            RenderTargetBitmap contentBmp = new RenderTargetBitmap(renderWidth, renderHeight, 96, 96, PixelFormats.Pbgra32);
-            contentBmp.Render(contentVisual);
-            BitmapSource displayBmp = RenderUtils.ApplyDisplayTransform(contentBmp, displayTransform);
 
             // ---- Weisse Druckseite im Eclipse-Stil aufbauen ----
             int pageW = RenderUtils.PageWidthPx;
@@ -381,13 +279,34 @@ namespace EclipsePlanReport
 
                 // --- Bildbereich ---
                 Rect imageArea = new Rect(235, 118, 1425, 1002);
-                double pageScale = Math.Min(imageArea.Width / displayBmp.PixelWidth, imageArea.Height / displayBmp.PixelHeight);
-                double targetW = displayBmp.PixelWidth * pageScale;
-                double targetH = displayBmp.PixelHeight * pageScale;
+                double displayWidth = displayTransform.SwapsAxes ? currentHeight : currentWidth;
+                double displayHeight = displayTransform.SwapsAxes ? currentWidth : currentHeight;
+                double pageScale = Math.Min(imageArea.Width / displayWidth, imageArea.Height / displayHeight);
+                double targetW = displayWidth * pageScale;
+                double targetH = displayHeight * pageScale;
                 double targetX = imageArea.X + (imageArea.Width - targetW) / 2.0;
                 double targetY = imageArea.Y + (imageArea.Height - targetH) / 2.0;
 
-                dc.DrawImage(displayBmp, new Rect(targetX, targetY, targetW, targetH));
+                relativeSkipped = DrawVectorSliceContent(
+                    dc,
+                    ctBitmap,
+                    image,
+                    sliceZ,
+                    structureSet,
+                    planningItem,
+                    template,
+                    sliceTarget,
+                    body,
+                    viewBounds,
+                    dose,
+                    doseData,
+                    dosePlaneIndex,
+                    new Rect(targetX, targetY, targetW, targetH),
+                    displayTransform,
+                    currentWidth,
+                    currentHeight,
+                    pageScale,
+                    log);
 
                 // Orientierungsbuchstaben und Z-Label direkt im gezeichneten CT-Bild
                 // platzieren. Der Bildbereich kann groesser sein als das tatsaechlich
@@ -439,7 +358,7 @@ namespace EclipsePlanReport
                 dc.DrawText(originText, new Point(pageW / 2.0 - originText.Width / 2.0, infoY + 22));
 
                 // Orientierungsfigur
-                RenderUtils.DrawManikin(dc, 34, 1104, 96, RenderUtils.ManikinView.Transversal);
+                RenderUtils.DrawManikin(dc, 34, 1104, 96, RenderUtils.ManikinView.Transversal, displayTransform);
 
                 // --- Fusszeile ---
                 dc.DrawLine(linePen, new Point(24, 1206), new Point(pageW - 24, 1206));
@@ -459,6 +378,174 @@ namespace EclipsePlanReport
             }
 
             RenderUtils.SaveVisualAsPng(pageVisual, pageW, pageH, filename);
+
+            if (relativeSkipped && log != null)
+                log("  Hinweis: relative Isodosen werden bei Summenplaenen nicht gezeichnet.");
+        }
+
+        private static bool DrawVectorSliceContent(
+            DrawingContext dc,
+            BitmapSource ctBitmap,
+            Image image,
+            int sliceZ,
+            StructureSet structureSet,
+            PlanningItem planningItem,
+            ReportTemplate template,
+            Structure sliceTarget,
+            Structure body,
+            Rect? viewBounds,
+            Dose dose,
+            double[,] doseData,
+            int dosePlaneIndex,
+            Rect targetRect,
+            RenderUtils.DisplayTransform displayTransform,
+            double currentWidth,
+            double currentHeight,
+            double drawScale,
+            Action<string> log)
+        {
+            bool relativeSkipped = false;
+
+            dc.PushClip(new RectangleGeometry(targetRect));
+            dc.PushTransform(new TranslateTransform(targetRect.X, targetRect.Y));
+            dc.PushTransform(new ScaleTransform(drawScale, drawScale));
+            dc.PushTransform(new MatrixTransform(RenderUtils.GetNaturalToDisplayMatrix(displayTransform, currentWidth, currentHeight)));
+
+            Geometry bodyClip = BuildBodyClip(body, image, sliceZ, viewBounds);
+            if (bodyClip != null)
+                dc.PushClip(bodyClip);
+
+            dc.DrawImage(ctBitmap, new Rect(0, 0, currentWidth, currentHeight));
+
+            Func<double, double, Point> mapDoseToView = (ix, iy) =>
+            {
+                double offXmm = ix * dose.XRes;
+                double offYmm = iy * dose.YRes;
+                double offZmm = dosePlaneIndex * dose.ZRes;
+
+                VVector patientPoint = new VVector(
+                    dose.Origin.x + offXmm * dose.XDirection.x + offYmm * dose.YDirection.x + offZmm * dose.ZDirection.x,
+                    dose.Origin.y + offXmm * dose.XDirection.y + offYmm * dose.YDirection.y + offZmm * dose.ZDirection.y,
+                    dose.Origin.z + offXmm * dose.XDirection.z + offYmm * dose.YDirection.z + offZmm * dose.ZDirection.z);
+
+                Point p = RenderUtils.ProjectToImagePixel(patientPoint, image);
+                if (viewBounds.HasValue)
+                    return new Point(p.X - viewBounds.Value.X, p.Y - viewBounds.Value.Y);
+                return p;
+            };
+
+            foreach (var iso in template.Isodoses)
+            {
+                double doseGy = ResolveIsodoseGy(iso, planningItem);
+                if (doseGy <= 0)
+                {
+                    if (iso.RelativeDosePercent > 0 && planningItem is PlanSum)
+                        relativeSkipped = true;
+                    continue;
+                }
+
+                double thickness = Math.Max(0.6, iso.Thickness) / drawScale;
+                Pen pen = new Pen(new SolidColorBrush(iso.Color), thickness);
+                RenderUtils.DrawIsoLines(dc, doseData, doseGy, pen, mapDoseToView);
+            }
+
+            int contourSegmentCount = 0;
+            if (structureSet != null)
+            {
+                foreach (var structure in GetSliceContourStructures(structureSet, sliceTarget, template, sliceZ))
+                    contourSegmentCount += DrawStructureContours(dc, structure, image, sliceZ, viewBounds, drawScale);
+            }
+            if (contourSegmentCount == 0 && log != null)
+            {
+                string targetId = sliceTarget != null ? sliceTarget.Id : "(kein Ziel)";
+                log(string.Format("  Warnung: keine Zielkontur auf CT-Schicht {0} gezeichnet (Ziel: {1}).", sliceZ, targetId));
+            }
+
+            if (bodyClip != null)
+                dc.Pop(); // Body-Clip
+            dc.Pop(); // display transform
+            dc.Pop(); // scale
+            dc.Pop(); // translate
+            dc.Pop(); // target clip
+
+            return relativeSkipped;
+        }
+
+        private static List<Structure> GetSliceContourStructures(
+            StructureSet structureSet,
+            Structure sliceTarget,
+            ReportTemplate template,
+            int sliceZ)
+        {
+            var result = new List<Structure>();
+            AddVisibleSliceStructure(result, sliceTarget, sliceZ);
+
+            if (structureSet == null || template == null)
+                return result;
+
+            foreach (Structure structure in structureSet.Structures
+                .Where(s => !s.IsEmpty &&
+                    (RenderUtils.MatchesAnyPattern(s.Id, template.TargetPatterns) || LooksLikeTargetStructure(s.Id))))
+            {
+                AddVisibleSliceStructure(result, structure, sliceZ);
+            }
+
+            return result;
+        }
+
+        private static void AddVisibleSliceStructure(List<Structure> result, Structure structure, int sliceZ)
+        {
+            if (structure == null || structure.IsEmpty)
+                return;
+            if (!structure.GetContoursOnImagePlane(sliceZ).Any())
+                return;
+            if (result.Any(s => string.Equals(s.Id, structure.Id, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            result.Add(structure);
+        }
+
+        private static bool LooksLikeTargetStructure(string id)
+        {
+            string value = (id ?? "").ToUpperInvariant();
+            return value.Contains("PTV") || value.Contains("CTV") || value.Contains("GTV") || value.Contains("BOOST");
+        }
+
+        private static int DrawStructureContours(
+            DrawingContext dc,
+            Structure structure,
+            Image image,
+            int sliceZ,
+            Rect? viewBounds,
+            double drawScale)
+        {
+            if (structure == null || structure.IsEmpty)
+                return 0;
+
+            Color structureColor = Color.FromRgb(structure.Color.R, structure.Color.G, structure.Color.B);
+            Pen colorPen = new Pen(new SolidColorBrush(structureColor), 2.1 / drawScale);
+            int drawn = 0;
+
+            foreach (var segment in structure.GetContoursOnImagePlane(sliceZ))
+            {
+                if (segment == null || segment.Length <= 1)
+                    continue;
+
+                Point previous = ConvertToZoomedPoint(segment[0], image, viewBounds);
+                for (int i = 1; i < segment.Length; i++)
+                {
+                    Point current = ConvertToZoomedPoint(segment[i], image, viewBounds);
+                    dc.DrawLine(colorPen, previous, current);
+                    previous = current;
+                    drawn++;
+                }
+
+                Point first = ConvertToZoomedPoint(segment[0], image, viewBounds);
+                dc.DrawLine(colorPen, previous, first);
+                drawn++;
+            }
+
+            return drawn;
         }
 
         private static void DrawImageOverlayText(DrawingContext dc, FormattedText text, double x, double y, double padX, double padY)
@@ -510,6 +597,12 @@ namespace EclipsePlanReport
 
         public static void DrawCTSlice(DrawingContext dc, Image image, int sliceZ, int startX, int startY, int width, int height)
         {
+            BitmapSource bitmap = CreateCTSliceBitmap(image, sliceZ, startX, startY, width, height);
+            dc.DrawImage(bitmap, new Rect(0, 0, width, height));
+        }
+
+        private static BitmapSource CreateCTSliceBitmap(Image image, int sliceZ, int startX, int startY, int width, int height)
+        {
             int[,] buffer = new int[image.XSize, image.YSize];
             image.GetVoxels(sliceZ, buffer);
 
@@ -541,7 +634,20 @@ namespace EclipsePlanReport
 
             BitmapSource bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Gray8, null, pixels, width);
             RenderOptions.SetBitmapScalingMode(bitmap, BitmapScalingMode.HighQuality);
-            dc.DrawImage(bitmap, new Rect(0, 0, width, height));
+            return bitmap;
+        }
+
+        private static Rect NormalizeImageBounds(Rect bounds, Image image)
+        {
+            int x0 = Math.Max(0, (int)Math.Floor(bounds.X));
+            int y0 = Math.Max(0, (int)Math.Floor(bounds.Y));
+            int x1 = Math.Min(image.XSize, (int)Math.Ceiling(bounds.X + bounds.Width));
+            int y1 = Math.Min(image.YSize, (int)Math.Ceiling(bounds.Y + bounds.Height));
+
+            if (x1 <= x0 || y1 <= y0)
+                return new Rect(0, 0, image.XSize, image.YSize);
+
+            return new Rect(x0, y0, x1 - x0, y1 - y0);
         }
 
         /// <summary>

@@ -8,6 +8,7 @@ using System.Text;
 using System.Web.Script.Serialization;
 using System.Windows;
 using System.Windows.Media;
+using VMS.TPS.Common.Model.Types;
 
 namespace EclipsePlanReport
 {
@@ -23,6 +24,21 @@ namespace EclipsePlanReport
                 return false;
 
             DrawProjectedModel(dc, model, x, y, height, view);
+            return true;
+        }
+
+        public static bool TryDraw(DrawingContext dc, double x, double y, double height, string rightLabel, string downLabel)
+        {
+            VVector rightAxis, downAxis;
+            if (!RenderUtils.TryGetPatientDirectionVector(rightLabel, out rightAxis) ||
+                !RenderUtils.TryGetPatientDirectionVector(downLabel, out downAxis))
+                return false;
+
+            Model model = GetModel();
+            if (model == null || model.Parts.Count == 0)
+                return false;
+
+            DrawProjectedModel(dc, model, x, y, height, rightAxis, downAxis);
             return true;
         }
 
@@ -181,6 +197,48 @@ namespace EclipsePlanReport
             }
         }
 
+        private static void DrawProjectedModel(DrawingContext dc, Model model, double x, double y, double height, VVector rightAxis, VVector downAxis)
+        {
+            VVector viewAxis = Cross(rightAxis, downAxis);
+            var projected = new List<ProjectedPart>();
+            foreach (ModelPart part in model.Parts)
+            {
+                List<Point> points = part.Points.Select(p => Project(p, rightAxis, downAxis)).ToList();
+                List<Point> hull = ConvexHull(points);
+                if (hull.Count >= 3)
+                    projected.Add(new ProjectedPart { Name = part.Name, Color = part.Color, Hull = hull, Depth = part.Points.Average(p => Depth(p, viewAxis)) });
+            }
+
+            if (projected.Count == 0)
+                return;
+
+            double minX = projected.Min(p => p.Hull.Min(q => q.X));
+            double maxX = projected.Max(p => p.Hull.Max(q => q.X));
+            double minY = projected.Min(p => p.Hull.Min(q => q.Y));
+            double maxY = projected.Max(p => p.Hull.Max(q => q.Y));
+            double w = Math.Max(0.001, maxX - minX);
+            double h = Math.Max(0.001, maxY - minY);
+            double scale = height * 0.82 / Math.Max(w, h);
+            double offsetX = x + height * 0.45 - (minX + maxX) * scale / 2.0;
+            double offsetY = y + height * 0.53 - (minY + maxY) * scale / 2.0;
+
+            foreach (ProjectedPart part in projected.OrderBy(p => p.Depth))
+            {
+                StreamGeometry geometry = new StreamGeometry();
+                using (StreamGeometryContext ctx = geometry.Open())
+                {
+                    Point first = Transform(part.Hull[0], scale, offsetX, offsetY);
+                    ctx.BeginFigure(first, true, true);
+                    ctx.PolyLineTo(part.Hull.Skip(1).Select(p => Transform(p, scale, offsetX, offsetY)).ToArray(), true, false);
+                }
+                geometry.Freeze();
+
+                Brush fill = new SolidColorBrush(part.Color);
+                Pen edge = new Pen(new SolidColorBrush(Color.FromArgb(130, 0, 90, 0)), Math.Max(0.45, height * 0.006));
+                dc.DrawGeometry(fill, edge, geometry);
+            }
+        }
+
         private static Point Project(Point3 p, RenderUtils.ManikinView view)
         {
             switch (view)
@@ -197,6 +255,12 @@ namespace EclipsePlanReport
             }
         }
 
+        private static Point Project(Point3 p, VVector rightAxis, VVector downAxis)
+        {
+            VVector patient = ToPatientVector(p);
+            return new Point(Dot(patient, rightAxis), Dot(patient, downAxis));
+        }
+
         private static double Depth(Point3 p, RenderUtils.ManikinView view)
         {
             switch (view)
@@ -211,6 +275,29 @@ namespace EclipsePlanReport
                 default:
                     return p.Y + 0.35 * p.X;
             }
+        }
+
+        private static double Depth(Point3 p, VVector viewAxis)
+        {
+            return -Dot(ToPatientVector(p), viewAxis);
+        }
+
+        private static VVector ToPatientVector(Point3 p)
+        {
+            return new VVector(-p.X, -p.Y, p.Z);
+        }
+
+        private static VVector Cross(VVector a, VVector b)
+        {
+            return new VVector(
+                a.y * b.z - a.z * b.y,
+                a.z * b.x - a.x * b.z,
+                a.x * b.y - a.y * b.x);
+        }
+
+        private static double Dot(VVector a, VVector b)
+        {
+            return a.x * b.x + a.y * b.y + a.z * b.z;
         }
 
         private static Point Transform(Point p, double scale, double offsetX, double offsetY)

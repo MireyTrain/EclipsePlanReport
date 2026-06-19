@@ -109,7 +109,7 @@ namespace EclipsePlanReport
                 y += 36;
                 List<BeamReportRow> rows = BuildBeamReportRows(planningItem, GetUserOrigin(structureSet));
                 double tableWidth = width - 2 * margin;
-                double[] col = { 0, 110, 245, 430, 625, 805, 930, 1035, 1138, 1300, 1415, 1510, 1595, tableWidth };
+                double[] col = { 0, 110, 245, 430, 625, 805, 930, 1035, 1138, 1300, 1415, 1510, tableWidth };
                 string[] headers =
                 {
                     "Field ID",
@@ -123,7 +123,6 @@ namespace EclipsePlanReport
                     "Isocenter",
                     "MLC/Wedge",
                     "Bolus/SSD",
-                    "Dose",
                     "MU"
                 };
 
@@ -153,7 +152,6 @@ namespace EclipsePlanReport
                         row.Isocenter,
                         row.MlcWedge,
                         row.BolusSsd,
-                        row.Dose,
                         row.Mu
                     };
                     dc.DrawLine(lightPen, new Point(margin, y + rowHeight), new Point(margin + tableWidth, y + rowHeight));

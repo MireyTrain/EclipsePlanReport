@@ -71,7 +71,7 @@ namespace EclipsePlanReport
 
             // CT-Volumen fuer synthetisches DRR, falls die Eclipse-DRRs nur "Live"
             // existieren und ESAPI keine Bilder liefert.
-            CtVolume ctVolume = NeedsSyntheticDrr(planningItem as PlanSetup) ? new CtVolume(image) : null;
+            CtVolume ctVolume = planningItem is PlanSetup ? new CtVolume(image) : null;
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             int[,] buffer = new int[image.XSize, image.YSize];
@@ -183,11 +183,14 @@ namespace EclipsePlanReport
                 string positionCode = RenderUtils.GetPatientPositionCode(rawOrientation);
                 string tableSideLabel = RenderUtils.GetTableSideLabel(positionCode);
                 string transRightLabel = RenderUtils.GetTransversalRightLabelForTableDown(tableSideLabel, positionCode);
+                string sagittalRightLabel = RenderUtils.GetSagittalRightLabel(positionCode);
+                string sagittalDownLabel = RenderUtils.GetSagittalDownLabel(positionCode);
                 string frontalRightLabel = RenderUtils.GetFrontalRightLabel(positionCode);
+                string frontalDownLabel = RenderUtils.GetFrontalDownLabel(positionCode);
 
                 RenderUtils.DisplayTransform transDisplay = RenderUtils.CreateDisplayTransform(image.XDirection, image.YDirection, transRightLabel, tableSideLabel);
-                RenderUtils.DisplayTransform sagDisplay = RenderUtils.CreateDisplayTransform(image.YDirection, image.ZDirection, "P", "F");
-                RenderUtils.DisplayTransform froDisplay = RenderUtils.CreateDisplayTransform(image.XDirection, image.ZDirection, frontalRightLabel, "F");
+                RenderUtils.DisplayTransform sagDisplay = RenderUtils.CreateDisplayTransform(image.YDirection, image.ZDirection, sagittalRightLabel, sagittalDownLabel);
+                RenderUtils.DisplayTransform froDisplay = RenderUtils.CreateDisplayTransform(image.XDirection, image.ZDirection, frontalRightLabel, frontalDownLabel);
                 if (log != null)
                 {
                     log(string.Format("  Orientierung: Position={0}, X={1}, Y={2}, Z={3}",
@@ -196,6 +199,7 @@ namespace EclipsePlanReport
                         RenderUtils.GetLabelForDirection(image.YDirection),
                         RenderUtils.GetLabelForDirection(image.ZDirection)));
                     log(string.Format("  Mapping Transversal: rechts={0}, unten={1} (Tisch unten).", transDisplay.RightLabel, transDisplay.BottomLabel));
+                    log(string.Format("  Mapping Sagittal: rechts={0}, unten={1}.", sagDisplay.RightLabel, sagDisplay.BottomLabel));
                     log(string.Format("  Mapping Frontal: rechts={0}, unten={1}.", froDisplay.RightLabel, froDisplay.BottomLabel));
                     if (transDisplay.IsFallback)
                         log("  Warnung: Transversal-Mapping nicht sicher bestimmbar - native Bildachsen werden verwendet.");
@@ -483,7 +487,8 @@ namespace EclipsePlanReport
             string positionLabel,
             string maxDoseLabel,
             Typeface typeface,
-            RenderUtils.ManikinView manikinView)
+            RenderUtils.ManikinView manikinView,
+            RenderUtils.DisplayTransform manikinDisplayTransform = null)
         {
             double titleHeight = 26;
             Pen borderPen = new Pen(Theme.SeparatorLine, 1.0);
@@ -557,7 +562,7 @@ namespace EclipsePlanReport
             }
 
             // Orientierungsfigur
-            RenderUtils.DrawManikin(dc, content.X + 8, content.Y + content.Height - 102, 70, manikinView);
+            RenderUtils.DrawManikin(dc, content.X + 8, content.Y + content.Height - 102, 70, manikinView, manikinDisplayTransform ?? displayTransform);
 
             return content;
         }
@@ -565,29 +570,11 @@ namespace EclipsePlanReport
         // ---------- BEV des Setup-Felds (DRR + ZV-Silhouette + Feldrahmen) ----------
 
         /// <summary>
-        /// Beam's-Eye-View des ersten Setup-Felds: DRR (Beam.ReferenceImage) als
-        /// Hintergrund, Zielvolumen als divergent projizierte Mesh-Silhouette,
-        /// Jaw-Feldrahmen zur Lagekontrolle. Liefert false, wenn kein Setup-Feld
-        /// vorhanden ist (dann bleibt das Plan-Info-Panel stehen).
-        /// HINWEIS: Vorzeichen-/Orientierungskonventionen am Eclipse-Rechner anhand
-        /// des Feldrahmens verifizieren (wie bei HFS/FFS-Spiegelung).
+        /// Beam's-Eye-View des ersten Setup-Felds: synthetisches DRR aus dem Planungs-CT
+        /// immer aus Gantry-0-Richtung, Zielvolumen als divergent projizierte Mesh-
+        /// Silhouette, Jaw-Feldrahmen zur Lagekontrolle. Liefert false, wenn kein
+        /// Setup-Feld vorhanden ist (dann bleibt das Plan-Info-Panel stehen).
         /// </summary>
-        /// <summary>true, wenn kein Feld des Plans ein gespeichertes DRR hat (nur "Live"-DRRs).</summary>
-        private static bool NeedsSyntheticDrr(PlanSetup planSetup)
-        {
-            if (planSetup == null)
-                return false;
-            try
-            {
-                var beams = planSetup.Beams.ToList();
-                return beams.Count > 0 && beams.All(b => GetReferenceImage(b) == null);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private static bool TryDrawSetupFieldBev(
             DrawingContext dc,
             Rect viewport,
@@ -605,43 +592,14 @@ namespace EclipsePlanReport
             {
                 List<Beam> allBeams = planSetup.Beams.ToList();
 
-                // Diagnose: DRR-Status aller Felder ins Log
-                if (log != null)
-                {
-                    foreach (Beam candidate in allBeams)
-                    {
-                        Image refImage = GetReferenceImage(candidate);
-                        log(string.Format("  BEV-Diagnose: Feld '{0}' Setup={1} DRR={2}",
-                            candidate.Id,
-                            candidate.IsSetupField ? "ja" : "nein",
-                            refImage != null
-                                ? string.Format("{0}x{1}", refImage.XSize, refImage.YSize)
-                                : "keins"));
-                    }
-                }
-
-                // Setup-Felder bevorzugt: erst solche mit DRR, CBCT zuletzt (hat nie ein DRR)
+                // Setup-Felder bevorzugt, CBCT zuletzt. Das DRR wird immer synthetisch
+                // aus Gantry 0 berechnet; gespeicherte ReferenceImages werden bewusst
+                // nicht verwendet.
                 beam = allBeams
                     .Where(x => x.IsSetupField)
-                    .OrderByDescending(x => GetReferenceImage(x) != null)
-                    .ThenBy(x => x.Id.IndexOf("CBCT", StringComparison.OrdinalIgnoreCase) >= 0 ? 1 : 0)
+                    .OrderBy(x => x.Id.IndexOf("CBCT", StringComparison.OrdinalIgnoreCase) >= 0 ? 1 : 0)
                     .ThenBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
                     .FirstOrDefault();
-
-                // Fallback: hat kein Setup-Feld ein DRR, aber ein Behandlungsfeld -> dieses nehmen
-                if (beam != null && GetReferenceImage(beam) == null)
-                {
-                    Beam treatmentWithDrr = allBeams
-                        .Where(x => !x.IsSetupField && GetReferenceImage(x) != null)
-                        .OrderBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
-                        .FirstOrDefault();
-                    if (treatmentWithDrr != null)
-                    {
-                        if (log != null)
-                            log(string.Format("  BEV: Setup-Felder ohne DRR - nutze Behandlungsfeld '{0}' mit DRR.", treatmentWithDrr.Id));
-                        beam = treatmentWithDrr;
-                    }
-                }
             }
             catch
             {
@@ -678,113 +636,48 @@ namespace EclipsePlanReport
             if (Math.Abs(NormalizeAngle180(couchDeg)) > 0.5 && log != null)
                 log(string.Format(RenderUtils.Num, "  BEV: Tischrotation {0:F1}° wird nicht beruecksichtigt.", couchDeg));
 
-            Image drr = GetReferenceImage(beam);
-            bool forceSyntheticGantryZero = drr == null && ctVolume != null;
-            double projectionGantryDeg = forceSyntheticGantryZero ? 0.0 : gantryDeg;
-            if (forceSyntheticGantryZero && log != null && Math.Abs(NormalizeAngle180(gantryDeg)) > 0.5)
-                log(string.Format(RenderUtils.Num, "  BEV: synthetischer DRR wird bei Gantry 0.0° gerendert (Feldgantry {0:F1}°).", gantryDeg));
+            double projectionGantryDeg = 0.0;
+            if (log != null && Math.Abs(NormalizeAngle180(gantryDeg)) > 0.5)
+                log(string.Format(RenderUtils.Num, "  BEV: DRR wird bewusst aus Gantry 0.0° berechnet (Feldgantry {0:F1}°).", gantryDeg));
 
             // Quellposition und BEV-Achsen in DICOM-Patientenkoordinaten.
-            // HFS: Gantry 0 = Quelle anterior (y-), Gantry 90 = Quelle links (x+).
-            // Feet-first und prone drehen die laterale BEV-Anzeige gegenueber HFS.
+            // Gantry 0 ist raum-/tischbezogen: Quelle kommt von der Seite
+            // gegenueber der Tischseite. Bei Decubitus ist das in
+            // DICOM-Patientenachsen lateral, nicht anterior/posterior.
+            // Die Tischseitenregel deckt HFS/FFS/HFP/FFP und Decubitus ab.
             string orientationName = ReflectionUtils.GetStringProperty(planSetup, "TreatmentOrientation");
             if (orientationName == null)
                 orientationName = "";
             string positionCode = RenderUtils.GetPatientPositionCode(orientationName);
-            bool flipLateralAxis = orientationName.StartsWith("FeetFirst", StringComparison.OrdinalIgnoreCase) ||
-                                   RenderUtils.IsPronePosition(positionCode);
-            double xSign = flipLateralAxis ? -1.0 : 1.0;
-            double g = projectionGantryDeg * Math.PI / 180.0;
+            string tableSideLabel = RenderUtils.GetTableSideLabel(positionCode);
+            VVector bAxis = NormalizeVec(RenderUtils.GetPatientDirectionVector(tableSideLabel));
+            VVector source = new VVector(
+                iso.x - sad * bAxis.x,
+                iso.y - sad * bAxis.y,
+                iso.z - sad * bAxis.z);
 
-            VVector source = new VVector(iso.x + xSign * sad * Math.Sin(g), iso.y - sad * Math.Cos(g), iso.z);
-            VVector bAxis = NormalizeVec(new VVector(iso.x - source.x, iso.y - source.y, iso.z - source.z));
-            VVector uAxis = NormalizeVec(new VVector(xSign * Math.Cos(g), Math.Sin(g), 0));
-            VVector vAxis = CrossVec(uAxis, bAxis); // zeigt fuer HFS nach kranial
-            if (RenderUtils.UsesMirroredDisplayHandedness(positionCode))
-                vAxis = RenderUtils.Negate(vAxis);
+            bool feetFirst = positionCode.StartsWith("FF", StringComparison.OrdinalIgnoreCase);
+            VVector vAxis = feetFirst
+                ? new VVector(0, 0, -1) // Panel bleibt raumfest: Feet-First erscheint kopf/fuss-invertiert zu Head-First.
+                : new VVector(0, 0, 1);
+            if (Math.Abs(DotVec(vAxis, bAxis)) > 0.95)
+                vAxis = new VVector(0, 1, 0);
+            VVector uAxis = NormalizeVec(CrossVec(bAxis, vAxis));
+            vAxis = NormalizeVec(CrossVec(uAxis, bAxis));
             if (log != null)
-                log(string.Format("  BEV: Orientierung={0}, laterale Achse rechts={1}, vertikale Achse oben={2}.",
+                log(string.Format("  BEV: Orientierung={0}, Tischseite={1}, Achse rechts={2}, Achse oben={3}.",
                     string.IsNullOrEmpty(positionCode) ? orientationName : positionCode,
+                    tableSideLabel,
                     RenderUtils.GetLabelForDirection(uAxis),
                     RenderUtils.GetLabelForDirection(vAxis)));
 
-            // ---- DRR laden (falls in Eclipse erzeugt) ----
+            // ---- DRR synthetisch aus dem Planungs-CT berechnen ----
             BitmapSource background = null;
             double wMm = 0, hMm = 0;
             Func<VVector, Point> project = null;
 
-            if (drr != null)
-            {
-                try
-                {
-                    int nx = drr.XSize, ny = drr.YSize;
-                    if (nx > 4 && ny > 4)
-                    {
-                        int[,] buffer = new int[nx, ny];
-                        drr.GetVoxels(0, buffer);
-
-                        double[,] values = new double[nx, ny];
-                        double min = double.MaxValue, max = double.MinValue;
-                        for (int c = 0; c < nx; c++)
-                        {
-                            for (int r = 0; r < ny; r++)
-                            {
-                                double value = drr.VoxelToDisplayValue(buffer[c, r]);
-                                values[c, r] = value;
-                                if (value < min) min = value;
-                                if (value > max) max = value;
-                            }
-                        }
-                        if (max <= min)
-                            max = min + 1;
-
-                        background = RenderUtils.MakeGrayBitmap(nx, ny, (c, r) => values[c, r], (min + max) / 2.0, max - min);
-                        wMm = nx * drr.XRes;
-                        hMm = ny * drr.YRes;
-
-                        // Exakte Projektion auf die DRR-Bildebene, sofern deren Geometrie
-                        // plausibel im Patientensystem liegt (Normale ~ Strahlachse).
-                        VVector origin = drr.Origin;
-                        VVector xDir = NormalizeVec(drr.XDirection);
-                        VVector yDir = NormalizeVec(drr.YDirection);
-                        VVector normal = CrossVec(xDir, yDir);
-
-                        if (Math.Abs(DotVec(normal, bAxis)) > 0.5)
-                        {
-                            double halfPxX = drr.XRes * 0.5;
-                            double halfPxY = drr.YRes * 0.5;
-                            project = p =>
-                            {
-                                VVector d = new VVector(p.x - source.x, p.y - source.y, p.z - source.z);
-                                double denom = DotVec(d, normal);
-                                if (Math.Abs(denom) < 1e-9)
-                                    denom = 1e-9;
-                                double t = DotVec(new VVector(origin.x - source.x, origin.y - source.y, origin.z - source.z), normal) / denom;
-                                if (t < 0.05)
-                                    t = 0.05;
-                                VVector q = new VVector(source.x + d.x * t, source.y + d.y * t, source.z + d.z * t);
-                                VVector rel = new VVector(q.x - origin.x, q.y - origin.y, q.z - origin.z);
-                                return new Point(DotVec(rel, xDir) + halfPxX, DotVec(rel, yDir) + halfPxY);
-                            };
-                        }
-                        else if (log != null)
-                        {
-                            log("  BEV: DRR-Ebenengeometrie unplausibel - nutze BEV-Naeherung (Isozentrumsebene).");
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    background = null;
-                    if (log != null)
-                        log("  BEV: DRR konnte nicht gelesen werden: " + e.Message);
-                }
-            }
-
-            // ---- Synthetisches DRR per Raycasting durchs Planungs-CT ----
-            // (Eclipse-"Live"-DRRs sind ueber ESAPI nicht als Bild verfuegbar.)
             bool syntheticDrr = false;
-            if (background == null && ctVolume != null)
+            if (ctVolume != null)
             {
                 try
                 {
@@ -794,7 +687,7 @@ namespace EclipsePlanReport
                     background = ComputeSyntheticDrr(ctVolume, source, iso, uAxis, vAxis, wMm, hMm, 384, 384);
                     syntheticDrr = background != null;
                     if (syntheticDrr && log != null)
-                        log(string.Format(RenderUtils.Num, "  BEV: DRR fuer Feld {0} aus dem CT berechnet ({1:F1} s, Eclipse-DRR ist 'Live').", beam.Id, drrWatch.Elapsed.TotalSeconds));
+                        log(string.Format(RenderUtils.Num, "  BEV: Gantry-0-DRR fuer Feld {0} aus dem CT berechnet ({1:F1} s).", beam.Id, drrWatch.Elapsed.TotalSeconds));
                 }
                 catch (Exception e)
                 {
@@ -830,7 +723,7 @@ namespace EclipsePlanReport
                 // schwarzer Hintergrund, wenn kein DRR existiert
                 background = RenderUtils.MakeGrayBitmap(2, 2, (c, r) => 0, 0, 1);
                 if (log != null)
-                    log(string.Format("  BEV: kein DRR fuer Setup-Feld {0} in Eclipse - zeichne nur Geometrie.", beam.Id));
+                    log(string.Format("  BEV: synthetisches DRR fuer Setup-Feld {0} nicht verfuegbar - zeichne nur Geometrie.", beam.Id));
             }
 
             // ---- Projizierte Umrisse aller relevanten PTVs (hochaufgeloeste Masken) ----
@@ -853,7 +746,7 @@ namespace EclipsePlanReport
                 .Select(project)
                 .ToList();
 
-            string drrLabel = drr != null ? " - DRR" : (syntheticDrr ? " - DRR (berechnet)" : " - kein DRR");
+            string drrLabel = syntheticDrr ? " - DRR (berechnet)" : " - kein DRR";
             string title = string.Format(RenderUtils.Num, "BEV {0}{1} - Gantry {2:F1}°{3}",
                 beam.IsSetupField ? "Setup-Feld " : "Feld ",
                 beam.Id, projectionGantryDeg, drrLabel);
@@ -872,6 +765,18 @@ namespace EclipsePlanReport
                 BottomLabel = "",
                 LeftLabel = "",
                 RightLabel = ""
+            };
+
+            var bevManikinDisplay = new RenderUtils.DisplayTransform
+            {
+                RightAxis = 0,
+                RightSign = 1,
+                DownAxis = 1,
+                DownSign = 1,
+                RightLabel = RenderUtils.GetLabelForDirection(uAxis),
+                LeftLabel = RenderUtils.GetLabelForDirection(RenderUtils.Negate(uAxis)),
+                TopLabel = RenderUtils.GetLabelForDirection(vAxis),
+                BottomLabel = RenderUtils.GetLabelForDirection(RenderUtils.Negate(vAxis))
             };
 
             DrawPlanarView(dc, viewport, title, background, wMm, hMm, bevDisplay,
@@ -902,7 +807,8 @@ namespace EclipsePlanReport
                 positionLabel,
                 "",
                 typeface,
-                RenderUtils.ManikinView.Frontal);
+                RenderUtils.ManikinView.Frontal,
+                bevManikinDisplay);
 
             return true;
         }
@@ -1109,31 +1015,6 @@ namespace EclipsePlanReport
             if (t0 > tMin) tMin = t0;
             if (t1 < tMax) tMax = t1;
             return tMax > tMin;
-        }
-
-        /// <summary>
-        /// DRR des Felds: direkt ueber Beam.ReferenceImage, bei aelteren/anderen
-        /// ESAPI-Versionen per Reflection - liefert null, wenn keins existiert.
-        /// </summary>
-        private static Image GetReferenceImage(Beam beam)
-        {
-            try
-            {
-                Image image = beam.ReferenceImage;
-                if (image != null)
-                    return image;
-            }
-            catch
-            {
-            }
-            try
-            {
-                return ReflectionUtils.GetPropertyValue(beam, "ReferenceImage") as Image;
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         /// <summary>Eckpunkte des Jaw-Felds in Patientenkoordinaten (Isozentrumsebene, Kollimator beruecksichtigt).</summary>

@@ -38,7 +38,6 @@ namespace EclipsePlanReport
         private Forms.TextBox txtLog;
         private Forms.ProgressBar progressBar;
         private Forms.Button btnStart;
-        private Forms.Button btnPreview;
         private Forms.Button btnOpenPdf;
         private Forms.Button btnOpenFolder;
 
@@ -238,15 +237,6 @@ namespace EclipsePlanReport
                 Maximum = 1000
             };
 
-            btnPreview = new Forms.Button
-            {
-                Text = "Vorschau",
-                Left = ClientSize.Width - 12 - 150 - 130 - 130 - 130 - 24,
-                Top = 770,
-                Width = 122,
-                Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right,
-                Enabled = false
-            };
             btnOpenFolder = new Forms.Button
             {
                 Text = "Ordner oeffnen",
@@ -278,7 +268,6 @@ namespace EclipsePlanReport
             btnLoad.Click += (s, e) => LoadPatient();
             btnBrowse.Click += (s, e) => BrowseOutputDir();
             btnStart.Click += (s, e) => RunReport();
-            btnPreview.Click += (s, e) => RunPreview();
             btnOpenPdf.Click += (s, e) => OpenPath(lastPdfPath);
             btnOpenFolder.Click += (s, e) => OpenPath(Path.GetDirectoryName(lastPdfPath));
             txtPatientId.KeyDown += (s, e) =>
@@ -300,7 +289,7 @@ namespace EclipsePlanReport
                 grid,
                 lblDvhTitle, clbDvh, btnDvhRecommended, btnDvhAll, btnDvhNone,
                 txtLog, progressBar,
-                btnPreview, btnOpenFolder, btnOpenPdf, btnStart
+                btnOpenFolder, btnOpenPdf, btnStart
             });
         }
 
@@ -442,13 +431,11 @@ namespace EclipsePlanReport
                 {
                     Log("Keine Plaene oder Summenplaene gefunden (Kurse mit Id 'PD' werden ausgeblendet).");
                     btnStart.Enabled = false;
-                    btnPreview.Enabled = false;
                 }
                 else
                 {
                     Log(string.Format("{0} Plan/Plaene gefunden. Optionen pruefen, dann 'Bericht erstellen'.", planRequests.Count));
                     btnStart.Enabled = true;
-                    btnPreview.Enabled = true;
                 }
             }
             catch (Exception e)
@@ -944,129 +931,6 @@ namespace EclipsePlanReport
             btnDvhAll.Enabled = !busy;
             btnDvhNone.Enabled = !busy;
             btnStart.Enabled = !busy && planRequests.Count > 0;
-            btnPreview.Enabled = !busy && planRequests.Count > 0;
-        }
-
-        /// <summary>Schnelle Vorschau (Planbericht + DVH + Statistik) fuer den selektierten Plan.</summary>
-        private void RunPreview()
-        {
-            if (currentPatient == null)
-                return;
-
-            PlanRequest plan = null;
-            if (grid.SelectedRows.Count > 0)
-                plan = grid.SelectedRows[0].Tag as PlanRequest;
-            else if (grid.CurrentRow != null)
-                plan = grid.CurrentRow.Tag as PlanRequest;
-            if (plan == null)
-            {
-                Forms.MessageBox.Show(this, "Bitte einen Plan in der Liste auswaehlen.", "Eclipse PlanReport", Forms.MessageBoxButtons.OK, Forms.MessageBoxIcon.Information);
-                return;
-            }
-
-            grid.EndEdit();
-            string outputDir = txtOutputDir.Text.Trim();
-            if (string.IsNullOrEmpty(outputDir))
-                outputDir = @"C:\EclipsePlanReport";
-
-            try
-            {
-                Directory.CreateDirectory(outputDir);
-            }
-            catch (Exception e)
-            {
-                Forms.MessageBox.Show(this, "Ausgabeordner kann nicht erstellt werden:\n" + e.Message, "Eclipse PlanReport", Forms.MessageBoxButtons.OK, Forms.MessageBoxIcon.Error);
-                return;
-            }
-
-            RenderUtils.FontScale = (double)numFontScale.Value;
-            Theme.Dark = chkDarkMode.Checked;
-            SetUiBusy(true);
-            try
-            {
-                var engine = new ReportEngine(Log, null);
-                List<string> files = engine.GeneratePreview(currentPatient, plan, templates, outputDir);
-                if (files.Count > 0)
-                    ShowPreviewWindow(files, plan.PlanId);
-            }
-            catch (Exception e)
-            {
-                Log("Fehler bei der Vorschau: " + e.Message);
-            }
-            finally
-            {
-                SetUiBusy(false);
-            }
-        }
-
-        /// <summary>
-        /// Eingebauter Bildbetrachter fuer die Vorschau-Seiten - unabhaengig von
-        /// Dateizuordnungen auf dem Klinikrechner (PNG hat dort oft keine App).
-        /// </summary>
-        private void ShowPreviewWindow(List<string> files, string planId)
-        {
-            var viewer = new Forms.Form
-            {
-                Text = string.Format("Vorschau - {0} (1/{1})", planId, files.Count),
-                StartPosition = Forms.FormStartPosition.CenterParent,
-                ClientSize = new System.Drawing.Size(1100, 760),
-                MinimumSize = new System.Drawing.Size(640, 480)
-            };
-
-            var pictureBox = new Forms.PictureBox
-            {
-                Dock = Forms.DockStyle.Fill,
-                SizeMode = Forms.PictureBoxSizeMode.Zoom,
-                BackColor = System.Drawing.Color.Black
-            };
-            var btnPrev = new Forms.Button { Text = "< Zurueck", Dock = Forms.DockStyle.Left, Width = 100 };
-            var btnNext = new Forms.Button { Text = "Weiter >", Dock = Forms.DockStyle.Right, Width = 100 };
-            var bottomPanel = new Forms.Panel { Dock = Forms.DockStyle.Bottom, Height = 36 };
-            bottomPanel.Controls.Add(btnPrev);
-            bottomPanel.Controls.Add(btnNext);
-
-            int index = 0;
-            Action showCurrent = () =>
-            {
-                try
-                {
-                    // Bild ohne Dateisperre laden, damit der naechste Lauf ueberschreiben kann
-                    using (var stream = new FileStream(files[index], FileMode.Open, FileAccess.Read))
-                    {
-                        var old = pictureBox.Image;
-                        pictureBox.Image = System.Drawing.Image.FromStream(stream);
-                        if (old != null)
-                            old.Dispose();
-                    }
-                    viewer.Text = string.Format("Vorschau - {0} ({1}/{2}) - {3}",
-                        planId, index + 1, files.Count, Path.GetFileName(files[index]));
-                }
-                catch (Exception e)
-                {
-                    Log("Vorschaubild konnte nicht geladen werden: " + e.Message);
-                }
-                btnPrev.Enabled = index > 0;
-                btnNext.Enabled = index < files.Count - 1;
-            };
-            btnPrev.Click += (s, e) => { if (index > 0) { index--; showCurrent(); } };
-            btnNext.Click += (s, e) => { if (index < files.Count - 1) { index++; showCurrent(); } };
-            viewer.KeyPreview = true;
-            viewer.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Forms.Keys.Left && index > 0) { index--; showCurrent(); }
-                if (e.KeyCode == Forms.Keys.Right && index < files.Count - 1) { index++; showCurrent(); }
-                if (e.KeyCode == Forms.Keys.Escape) viewer.Close();
-            };
-            viewer.FormClosed += (s, e) =>
-            {
-                if (pictureBox.Image != null)
-                    pictureBox.Image.Dispose();
-            };
-
-            viewer.Controls.Add(pictureBox);
-            viewer.Controls.Add(bottomPanel);
-            showCurrent();
-            viewer.Show(this);
         }
 
         // ---------- Hilfsfunktionen ----------
