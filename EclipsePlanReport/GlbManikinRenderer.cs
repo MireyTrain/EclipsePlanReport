@@ -188,7 +188,7 @@ namespace EclipsePlanReport
                 case RenderUtils.ManikinView.Frontal:
                     return new Point(-p.X, -p.Z);
                 case RenderUtils.ManikinView.Sagittal:
-                    return new Point(p.Y, -p.Z);
+                    return new Point(-p.Y, -p.Z);
                 case RenderUtils.ManikinView.Transversal:
                     return new Point(-p.X, -p.Y);
                 case RenderUtils.ManikinView.ThreeD:

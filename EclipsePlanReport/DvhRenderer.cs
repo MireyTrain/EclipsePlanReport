@@ -456,7 +456,10 @@ namespace EclipsePlanReport
         {
             if (!value.HasValue || double.IsNaN(value.Value))
                 return 0;
-            return value.Value <= 1.0 ? value.Value * 100.0 : value.Value;
+            // ESAPI reports Coverage/SamplingCoverage effectively as fractions in
+            // some versions. Values near 1.0 can arrive with tiny numerical drift
+            // and must still be shown as 100%, matching Eclipse's DVH print.
+            return value.Value <= 1.5 ? value.Value * 100.0 : value.Value;
         }
 
         private static string FormatVolume(double volume, CultureInfo culture)

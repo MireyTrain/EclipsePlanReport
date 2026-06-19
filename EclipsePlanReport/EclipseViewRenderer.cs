@@ -553,11 +553,11 @@ namespace EclipsePlanReport
             if (!string.IsNullOrEmpty(positionLabel))
             {
                 var posText = RenderUtils.CreateFormattedText(positionLabel, RenderUtils.ScaleSliceFont(12), Brushes.Red, typeface, RenderUtils.Num);
-                dc.DrawText(posText, new Point(content.X + 8, content.Y + content.Height - posText.Height - 64));
+                dc.DrawText(posText, new Point(content.X + 8, content.Y + content.Height - posText.Height - 108));
             }
 
             // Orientierungsfigur
-            RenderUtils.DrawManikin(dc, content.X + 10, content.Y + content.Height - 56, 46, manikinView);
+            RenderUtils.DrawManikin(dc, content.X + 8, content.Y + content.Height - 102, 70, manikinView);
 
             return content;
         }
@@ -902,7 +902,7 @@ namespace EclipsePlanReport
                 positionLabel,
                 "",
                 typeface,
-                RenderUtils.ManikinView.ThreeD);
+                RenderUtils.ManikinView.Frontal);
 
             return true;
         }
