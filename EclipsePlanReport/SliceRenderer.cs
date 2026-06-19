@@ -398,13 +398,14 @@ namespace EclipsePlanReport
                 double oriSize = RenderUtils.ScaleSliceFont(18);
                 double imgCenterX = targetX + targetW / 2.0;
                 double imgCenterY = targetY + targetH / 2.0;
-                var topText = RenderUtils.CreateFormattedText(displayTransform.TopLabel, oriSize, textBrush, boldTypeface, culture);
+                Brush imageLabelBrush = Brushes.White;
+                var topText = RenderUtils.CreateFormattedText(displayTransform.TopLabel, oriSize, imageLabelBrush, boldTypeface, culture);
                 DrawImageOverlayText(dc, topText, imgCenterX - topText.Width / 2.0, targetY + labelPadding, labelBgPadX, labelBgPadY);
-                var bottomText = RenderUtils.CreateFormattedText(displayTransform.BottomLabel, oriSize, textBrush, boldTypeface, culture);
+                var bottomText = RenderUtils.CreateFormattedText(displayTransform.BottomLabel, oriSize, imageLabelBrush, boldTypeface, culture);
                 DrawImageOverlayText(dc, bottomText, imgCenterX - bottomText.Width / 2.0, targetY + targetH - bottomText.Height - labelPadding, labelBgPadX, labelBgPadY);
-                var leftText = RenderUtils.CreateFormattedText(displayTransform.LeftLabel, oriSize, textBrush, boldTypeface, culture);
+                var leftText = RenderUtils.CreateFormattedText(displayTransform.LeftLabel, oriSize, imageLabelBrush, boldTypeface, culture);
                 DrawImageOverlayText(dc, leftText, targetX + labelPadding, imgCenterY - leftText.Height / 2.0, labelBgPadX, labelBgPadY);
-                var rightText = RenderUtils.CreateFormattedText(displayTransform.RightLabel, oriSize, textBrush, boldTypeface, culture);
+                var rightText = RenderUtils.CreateFormattedText(displayTransform.RightLabel, oriSize, imageLabelBrush, boldTypeface, culture);
                 DrawImageOverlayText(dc, rightText, targetX + targetW - rightText.Width - labelPadding, imgCenterY - rightText.Height / 2.0, labelBgPadX, labelBgPadY);
 
                 // Z-Position oben links im Bild statt am cm-Lineal.

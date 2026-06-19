@@ -519,7 +519,7 @@ namespace EclipsePlanReport
 
             private void WriteGeometryPath(Geometry geometry)
             {
-                if (geometry == null || geometry.IsEmpty())
+                if (geometry == null)
                     return;
 
                 PathGeometry path = geometry.GetFlattenedPathGeometry(0.10, ToleranceType.Absolute);
