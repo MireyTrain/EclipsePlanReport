@@ -1,0 +1,34 @@
+# Build outputs
+EclipsePlanReport/debug/
+EclipsePlanReport/bin/
+EclipsePlanReport/obj/
+EclipsePlanReport/packages/
+
+# Local diagnostics and generated reports
+diagnostics/
+Planreport_*/
+*.pdf
+*.xlsx
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+
+# Local/runtime configuration
+planreport_settings.txt
+
+# Vendor/runtime binaries
+Libs/*.dll
+EclipsePlanReport/**/*.dll
+EclipsePlanReport/**/*.exe
+EclipsePlanReport/**/*.pdb
+
+# IDE and OS noise
+.vs/
+.vscode/
+*.user
+*.suo
+*.orig.bak
+Thumbs.db
+desktop.ini
