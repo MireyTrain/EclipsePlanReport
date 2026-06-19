@@ -163,27 +163,19 @@ namespace EclipsePlanReport
                 foreach (var curve in curves)
                 {
                     Pen curvePen = new Pen(new SolidColorBrush(curve.Color), 2.0);
-                    StreamGeometry geometry = new StreamGeometry();
-                    using (StreamGeometryContext sgc = geometry.Open())
+                    Point? previousPoint = null;
+                    foreach (var point in curve.Dvh.CurveData)
                     {
-                        bool first = true;
-                        foreach (var point in curve.Dvh.CurveData)
-                        {
-                            double x = left + (point.DoseValue.Dose / maxDose) * plotWidth;
-                            double y = top + (1.0 - point.Volume / 100.0) * plotHeight;
-                            var screenPoint = new Point(x, y);
-                            if (first)
-                            {
-                                sgc.BeginFigure(screenPoint, false, false);
-                                first = false;
-                            }
-                            else
-                            {
-                                sgc.LineTo(screenPoint, true, false);
-                            }
-                        }
+                        double x = left + (point.DoseValue.Dose / maxDose) * plotWidth;
+                        double y = top + (1.0 - point.Volume / 100.0) * plotHeight;
+                        x = RenderUtils.Clamp(x, left, left + plotWidth);
+                        y = RenderUtils.Clamp(y, top, top + plotHeight);
+
+                        var screenPoint = new Point(x, y);
+                        if (previousPoint.HasValue)
+                            dc.DrawLine(curvePen, previousPoint.Value, screenPoint);
+                        previousPoint = screenPoint;
                     }
-                    dc.DrawGeometry(null, curvePen, geometry);
                 }
 
                 // Legende rechts neben dem Plot
