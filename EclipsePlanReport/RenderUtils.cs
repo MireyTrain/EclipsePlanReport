@@ -677,27 +677,176 @@ namespace EclipsePlanReport
             return y;
         }
 
+        internal enum ManikinView
+        {
+            ThreeD,
+            Frontal,
+            Sagittal,
+            Transversal
+        }
+
         /// <summary>Kleine gruene Patientenfigur (Eclipse-Orientierungsmaennchen).</summary>
         public static void DrawManikin(DrawingContext dc, double x, double y, double height)
         {
-            Brush green = new SolidColorBrush(Color.FromRgb(0, 200, 0));
-            Pen pen = new Pen(green, Math.Max(1.5, height * 0.07));
+            DrawManikin(dc, x, y, height, ManikinView.ThreeD);
+        }
 
-            double headR = height * 0.14;
-            double cx = x + height * 0.35;
-            double headCy = y + headR;
+        public static void DrawManikin(DrawingContext dc, double x, double y, double height, ManikinView view)
+        {
+            switch (view)
+            {
+                case ManikinView.Frontal:
+                    DrawManikinFrontal(dc, x, y, height);
+                    break;
+                case ManikinView.Sagittal:
+                    DrawManikinSagittal(dc, x, y, height);
+                    break;
+                case ManikinView.Transversal:
+                    DrawManikinTransversal(dc, x, y, height);
+                    break;
+                case ManikinView.ThreeD:
+                default:
+                    DrawManikinThreeD(dc, x, y, height);
+                    break;
+            }
+        }
 
-            dc.DrawEllipse(green, null, new Point(cx, headCy), headR, headR);
+        private static void DrawManikinAxes(DrawingContext dc, double x, double y, double height, ManikinView view)
+        {
+            double t = Math.Max(1.6, height * 0.035);
+            Pen red = new Pen(new SolidColorBrush(Color.FromRgb(245, 20, 40)), t);
+            Pen yellow = new Pen(new SolidColorBrush(Color.FromRgb(230, 220, 55)), t);
+            Pen green = new Pen(new SolidColorBrush(Color.FromRgb(0, 210, 40)), t);
 
-            double neckY = headCy + headR;
-            double hipY = y + height * 0.62;
-            double footY = y + height;
+            red.StartLineCap = red.EndLineCap = PenLineCap.Round;
+            yellow.StartLineCap = yellow.EndLineCap = PenLineCap.Round;
+            green.StartLineCap = green.EndLineCap = PenLineCap.Round;
 
-            dc.DrawLine(pen, new Point(cx, neckY), new Point(cx, hipY));                                   // Rumpf
-            dc.DrawLine(pen, new Point(cx, neckY + height * 0.08), new Point(cx - height * 0.28, y + height * 0.42)); // Arm links
-            dc.DrawLine(pen, new Point(cx, neckY + height * 0.08), new Point(cx + height * 0.28, y + height * 0.42)); // Arm rechts
-            dc.DrawLine(pen, new Point(cx, hipY), new Point(cx - height * 0.2, footY));                     // Bein links
-            dc.DrawLine(pen, new Point(cx, hipY), new Point(cx + height * 0.2, footY));                     // Bein rechts
+            if (view == ManikinView.Frontal)
+            {
+                dc.DrawLine(red, new Point(x + height * 0.48, y + height * 0.02), new Point(x + height * 0.48, y + height * 0.38));
+                dc.DrawLine(yellow, new Point(x + height * 0.48, y + height * 0.38), new Point(x + height * 0.83, y + height * 0.38));
+            }
+            else if (view == ManikinView.Sagittal)
+            {
+                dc.DrawLine(red, new Point(x + height * 0.50, y + height * 0.02), new Point(x + height * 0.50, y + height * 0.44));
+                dc.DrawLine(green, new Point(x + height * 0.12, y + height * 0.44), new Point(x + height * 0.50, y + height * 0.44));
+            }
+            else if (view == ManikinView.Transversal)
+            {
+                dc.DrawLine(green, new Point(x + height * 0.17, y + height * 0.45), new Point(x + height * 0.55, y + height * 0.45));
+                dc.DrawLine(yellow, new Point(x + height * 0.55, y + height * 0.45), new Point(x + height * 0.86, y + height * 0.45));
+                dc.DrawLine(red, new Point(x + height * 0.55, y + height * 0.16), new Point(x + height * 0.55, y + height * 0.45));
+            }
+            else
+            {
+                Point o = new Point(x + height * 0.58, y + height * 0.30);
+                dc.DrawLine(red, o, new Point(o.X - height * 0.08, o.Y - height * 0.29));
+                dc.DrawLine(yellow, o, new Point(o.X + height * 0.27, o.Y + height * 0.03));
+                dc.DrawLine(green, o, new Point(o.X - height * 0.20, o.Y + height * 0.18));
+            }
+        }
+
+        private static void DrawManikinThreeD(DrawingContext dc, double x, double y, double height)
+        {
+            DrawManikinAxes(dc, x, y, height, ManikinView.ThreeD);
+
+            Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
+            Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
+            Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));
+            Pen limbPen = new Pen(green, Math.Max(3.0, height * 0.095));
+            limbPen.StartLineCap = limbPen.EndLineCap = PenLineCap.Round;
+
+            double cx = x + height * 0.34;
+            double cy = y + height * 0.48;
+            dc.DrawEllipse(green, null, new Point(cx, cy), height * 0.16, height * 0.20);
+            dc.DrawEllipse(light, null, new Point(cx - height * 0.05, cy - height * 0.07), height * 0.045, height * 0.045);
+            dc.DrawEllipse(green, null, new Point(cx + height * 0.04, y + height * 0.20), height * 0.095, height * 0.095);
+
+            dc.DrawLine(limbPen, new Point(cx - height * 0.12, cy - height * 0.03), new Point(x + height * 0.08, y + height * 0.43));
+            dc.DrawLine(limbPen, new Point(cx + height * 0.12, cy - height * 0.03), new Point(x + height * 0.55, y + height * 0.43));
+            dc.DrawLine(limbPen, new Point(cx - height * 0.08, cy + height * 0.15), new Point(x + height * 0.16, y + height * 0.82));
+            dc.DrawLine(limbPen, new Point(cx + height * 0.07, cy + height * 0.16), new Point(x + height * 0.48, y + height * 0.82));
+
+            DrawJoint(dc, cyan, x + height * 0.08, y + height * 0.43, height);
+            DrawJoint(dc, cyan, x + height * 0.55, y + height * 0.43, height);
+            DrawJoint(dc, cyan, x + height * 0.16, y + height * 0.82, height);
+            DrawJoint(dc, cyan, x + height * 0.48, y + height * 0.82, height);
+        }
+
+        private static void DrawManikinFrontal(DrawingContext dc, double x, double y, double height)
+        {
+            DrawManikinAxes(dc, x, y, height, ManikinView.Frontal);
+            DrawStandingManikin(dc, x + height * 0.16, y + height * 0.42, height * 0.48, false);
+        }
+
+        private static void DrawManikinSagittal(DrawingContext dc, double x, double y, double height)
+        {
+            DrawManikinAxes(dc, x, y, height, ManikinView.Sagittal);
+
+            Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
+            Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
+            Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));
+            Pen pen = new Pen(green, Math.Max(3.0, height * 0.075));
+            pen.StartLineCap = pen.EndLineCap = PenLineCap.Round;
+
+            double cx = x + height * 0.46;
+            dc.DrawEllipse(green, null, new Point(cx, y + height * 0.49), height * 0.11, height * 0.17);
+            dc.DrawEllipse(light, null, new Point(cx - height * 0.03, y + height * 0.43), height * 0.035, height * 0.035);
+            dc.DrawEllipse(green, null, new Point(cx, y + height * 0.28), height * 0.075, height * 0.075);
+            dc.DrawLine(pen, new Point(cx, y + height * 0.61), new Point(cx, y + height * 0.81));
+            DrawJoint(dc, cyan, cx, y + height * 0.81, height);
+        }
+
+        private static void DrawManikinTransversal(DrawingContext dc, double x, double y, double height)
+        {
+            DrawManikinAxes(dc, x, y, height, ManikinView.Transversal);
+
+            Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
+            Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
+            Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));
+            Pen limbPen = new Pen(green, Math.Max(3.0, height * 0.08));
+            limbPen.StartLineCap = limbPen.EndLineCap = PenLineCap.Round;
+
+            Point body = new Point(x + height * 0.45, y + height * 0.58);
+            dc.DrawEllipse(green, null, body, height * 0.20, height * 0.15);
+            dc.DrawEllipse(light, null, new Point(body.X - height * 0.07, body.Y - height * 0.04), height * 0.05, height * 0.04);
+            dc.DrawLine(limbPen, new Point(body.X - height * 0.17, body.Y), new Point(x + height * 0.10, y + height * 0.53));
+            dc.DrawLine(limbPen, new Point(body.X + height * 0.17, body.Y), new Point(x + height * 0.78, y + height * 0.53));
+            dc.DrawLine(limbPen, new Point(body.X - height * 0.09, body.Y + height * 0.11), new Point(x + height * 0.27, y + height * 0.82));
+            dc.DrawLine(limbPen, new Point(body.X + height * 0.09, body.Y + height * 0.11), new Point(x + height * 0.62, y + height * 0.82));
+            DrawJoint(dc, cyan, x + height * 0.10, y + height * 0.53, height);
+            DrawJoint(dc, cyan, x + height * 0.78, y + height * 0.53, height);
+        }
+
+        private static void DrawStandingManikin(DrawingContext dc, double x, double y, double height, bool narrow)
+        {
+            Brush green = new SolidColorBrush(Color.FromRgb(0, 205, 32));
+            Brush light = new SolidColorBrush(Color.FromRgb(96, 255, 86));
+            Brush cyan = new SolidColorBrush(Color.FromRgb(20, 235, 235));
+            Pen pen = new Pen(green, Math.Max(3.0, height * 0.115));
+            pen.StartLineCap = pen.EndLineCap = PenLineCap.Round;
+
+            double cx = x + height * 0.36;
+            double top = y;
+            double arm = narrow ? height * 0.12 : height * 0.23;
+            dc.DrawEllipse(green, null, new Point(cx, top + height * 0.10), height * 0.10, height * 0.10);
+            dc.DrawEllipse(green, null, new Point(cx, top + height * 0.38), height * 0.15, height * 0.20);
+            dc.DrawEllipse(light, null, new Point(cx - height * 0.05, top + height * 0.30), height * 0.04, height * 0.04);
+            dc.DrawLine(pen, new Point(cx - height * 0.11, top + height * 0.34), new Point(cx - arm, top + height * 0.55));
+            dc.DrawLine(pen, new Point(cx + height * 0.11, top + height * 0.34), new Point(cx + arm, top + height * 0.55));
+            dc.DrawLine(pen, new Point(cx - height * 0.07, top + height * 0.55), new Point(cx - height * 0.15, top + height * 0.86));
+            dc.DrawLine(pen, new Point(cx + height * 0.07, top + height * 0.55), new Point(cx + height * 0.15, top + height * 0.86));
+            DrawJoint(dc, cyan, cx - arm, top + height * 0.55, height);
+            DrawJoint(dc, cyan, cx + arm, top + height * 0.55, height);
+            DrawJoint(dc, cyan, cx - height * 0.15, top + height * 0.86, height);
+            DrawJoint(dc, cyan, cx + height * 0.15, top + height * 0.86, height);
+        }
+
+        private static void DrawJoint(DrawingContext dc, Brush brush, double x, double y, double height)
+        {
+            double r = Math.Max(2.0, height * 0.035);
+            dc.DrawEllipse(brush, null, new Point(x, y), r, r);
         }
 
         /// <summary>Horizontales Lineal mit cm-Ticks (laengerer Tick + Beschriftung alle 5 cm).</summary>
