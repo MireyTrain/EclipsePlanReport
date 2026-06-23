@@ -1312,10 +1312,12 @@ namespace EclipsePlanReport
             try
             {
                 Beam beam = planSetup.Beams
-                    .Where(b => !b.IsSetupField)
+                    .Where(b => b.IsSetupField)
                     .FirstOrDefault();
                 if (beam == null)
-                    beam = planSetup.Beams.FirstOrDefault();
+                    beam = planSetup.Beams
+                        .Where(b => !b.IsSetupField)
+                        .FirstOrDefault();
                 if (beam == null)
                     return false;
 
