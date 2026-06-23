@@ -295,7 +295,8 @@ namespace EclipsePlanReport
 
         private static void AddIfExists(List<string> paths, string path)
         {
-            if (File.Exists(path))
+            VectorPdfPage page;
+            if (File.Exists(path) || VectorPdfPageStore.TryGet(path, out page))
                 paths.Add(path);
         }
 

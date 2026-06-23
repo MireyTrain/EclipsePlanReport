@@ -56,8 +56,10 @@ Im Ausgabeordner wird pro Lauf ein Unterordner erzeugt:
 
 Darin liegen:
 
-- alle erzeugten PNG-Seiten,
 - das zusammengefuehrte PDF `PlanReport_<PatientID>_<Zeitstempel>.pdf`.
+
+PNG-Zwischenseiten werden standardmaessig nicht mehr gespeichert. Die Seiten
+werden fuer das finale Vector-PDF im Speicher gehalten.
 
 Voreingestellter Ausgabeordner ist `C:\EclipsePlanReport`; die Einstellung wird neben der EXE in `planreport_settings.txt` gespeichert.
 

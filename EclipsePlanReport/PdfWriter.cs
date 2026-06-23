@@ -26,15 +26,22 @@ namespace EclipsePlanReport
             try
             {
                 List<VectorPdfPage> vectorPages = new List<VectorPdfPage>();
-                foreach (string path in imagePaths.Where(File.Exists))
+                foreach (string path in imagePaths)
                 {
                     VectorPdfPage page;
                     if (!VectorPdfPageStore.TryGet(path, out page))
                     {
+                        if (File.Exists(path))
+                        {
+                            if (log != null)
+                                log("Vektor-PDF: nicht alle Seiten sind als Drawing verfuegbar - nutze Raster-Fallback.");
+                            CreateRasterPdfFromImages(imagePaths, pdfPath, log);
+                            return;
+                        }
+
                         if (log != null)
-                            log("Vektor-PDF: nicht alle Seiten sind als Drawing verfuegbar - nutze Raster-Fallback.");
-                        CreateRasterPdfFromImages(imagePaths, pdfPath, log);
-                        return;
+                            log(string.Format("Vektor-PDF: Seite ohne Drawing und ohne PNG uebersprungen: {0}", path));
+                        continue;
                     }
                     vectorPages.Add(page);
                 }
@@ -48,6 +55,13 @@ namespace EclipsePlanReport
             }
             catch (Exception e)
             {
+                if (!imagePaths.Any(File.Exists))
+                {
+                    if (log != null)
+                        log("Vektor-PDF fehlgeschlagen; PNG-Fallback ist deaktiviert: " + e.Message);
+                    throw new InvalidOperationException("Vektor-PDF fehlgeschlagen und PNG-Fallback ist deaktiviert.", e);
+                }
+
                 if (log != null)
                     log("Vektor-PDF fehlgeschlagen, nutze Raster-Fallback: " + e.Message);
                 CreateRasterPdfFromImages(imagePaths, pdfPath, log);

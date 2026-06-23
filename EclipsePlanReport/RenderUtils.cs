@@ -57,6 +57,7 @@ namespace EclipsePlanReport
         public const int PageHeightPx = 1240;
         public const double OutputScale = 2.0;
         public const double OutputDpi = 192.0;
+        private static readonly bool WriteIntermediatePngFiles = false;
 
         public static readonly CultureInfo Num = CultureInfo.InvariantCulture;
 
@@ -174,6 +175,12 @@ namespace EclipsePlanReport
 
         public static void SaveVisualAsPng(DrawingVisual visual, int width, int height, string filename, List<VectorPdfTextRun> textRuns)
         {
+            if (visual.Drawing != null)
+                VectorPdfPageStore.Register(filename, visual.Drawing.Clone(), width, height, textRuns);
+
+            if (!WriteIntermediatePngFiles)
+                return;
+
             int outputWidth = (int)Math.Round(width * OutputScale);
             int outputHeight = (int)Math.Round(height * OutputScale);
 
@@ -186,9 +193,6 @@ namespace EclipsePlanReport
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 encoder.Save(fileStream);
             }
-
-            if (visual.Drawing != null)
-                VectorPdfPageStore.Register(filename, visual.Drawing.Clone(), width, height, textRuns);
         }
 
         public static string MakeFilenameValid(string s)
