@@ -437,9 +437,10 @@ namespace EclipsePlanReport
             DVHData targetDvh = TryGetDvh(planningItem, normalizedTarget, "normiertes PTV", log);
             if (targetDvh != null)
             {
-                lines.Add(string.Format(RenderUtils.Num, "1.Max: {0:F2} Gy", targetDvh.MaxDose.Dose));
-                lines.Add(string.Format(RenderUtils.Num, "2.Min: {0:F2} Gy", targetDvh.MinDose.Dose));
-                lines.Add(string.Format(RenderUtils.Num, "3.Mittel: {0:F2} Gy", targetDvh.MeanDose.Dose));
+                string targetName = normalizedTarget != null ? normalizedTarget.Id : "PTV";
+                lines.Add(string.Format(RenderUtils.Num, "Max ({0}): {1:F2} Gy", targetName, targetDvh.MaxDose.Dose));
+                lines.Add(string.Format(RenderUtils.Num, "Min ({0}): {1:F2} Gy", targetName, targetDvh.MinDose.Dose));
+                lines.Add(string.Format(RenderUtils.Num, "Mittel ({0}): {1:F2} Gy", targetName, targetDvh.MeanDose.Dose));
             }
 
             return string.Join("\n", lines);
