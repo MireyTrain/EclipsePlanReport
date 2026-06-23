@@ -257,7 +257,7 @@ namespace EclipsePlanReport
             if (!sliceIndices.Contains(lastSlice))
                 sliceIndices.Add(lastSlice);
             sliceIndices = sliceIndices
-                .OrderBy(z => SliceRenderer.ComputeEclipseZcm(ss.Image, z))
+                .OrderByDescending(z => SliceRenderer.ComputeEclipseZcm(ss.Image, z))
                 .ToList();
 
             for (int i = 0; i < sliceIndices.Count; i++)
