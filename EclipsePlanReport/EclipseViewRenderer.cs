@@ -223,8 +223,8 @@ namespace EclipsePlanReport
                 double cyMm = DotFromOrigin(center, image, image.YDirection);
                 double czMm = DotFromOrigin(center, image, image.ZDirection);
 
-                // Position relativ zum User-Origin (DICOM-Achsen, cm)
-                VVector userRel = ComputeUserRelCm(image, center);
+                // Position relativ zum User-Origin in der Eclipse-Patientenlagerung.
+                VVector userRel = RenderUtils.ComputeEclipseUserCoordinatesCm(image, center, positionCode);
 
                 // --- transversal (oben links) ---
                 Rect transContent = DrawPlanarView(dc, q1,
@@ -246,7 +246,7 @@ namespace EclipsePlanReport
                             p => new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.YDirection)));
                         DrawCrosshair(innerDc, cxMm, cyMm, image.XSize * image.XRes, image.YSize * image.YRes, penScale, SagPlaneColor, FroPlaneColor);
                     },
-                    string.Format(culture, "Z: {0:+0.00;-0.00;0.00} cm", SliceRenderer.ComputeEclipseZcm(image, zc)),
+                    string.Format(culture, "Z: {0:+0.00;-0.00;0.00} cm", SliceRenderer.ComputeEclipseZcm(image, zc, positionCode)),
                     BuildMaxDoseLabel(transDose),
                     typeface,
                     RenderUtils.ManikinView.Transversal);
@@ -1335,24 +1335,6 @@ namespace EclipsePlanReport
             return !double.IsNaN(point.x) && !double.IsInfinity(point.x) &&
                    !double.IsNaN(point.y) && !double.IsInfinity(point.y) &&
                    !double.IsNaN(point.z) && !double.IsInfinity(point.z);
-        }
-
-        /// <summary>Punkt relativ zum User-Origin in cm (DICOM-Achsen).</summary>
-        private static VVector ComputeUserRelCm(Image image, VVector point)
-        {
-            VVector userOrigin;
-            try
-            {
-                userOrigin = image.UserOrigin;
-            }
-            catch
-            {
-                userOrigin = image.Origin;
-            }
-            return new VVector(
-                (point.x - userOrigin.x) / 10.0,
-                (point.y - userOrigin.y) / 10.0,
-                (point.z - userOrigin.z) / 10.0);
         }
 
         private static double DotFromOrigin(VVector point, Image image, VVector axis)

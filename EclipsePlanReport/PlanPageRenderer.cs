@@ -59,9 +59,11 @@ namespace EclipsePlanReport
                 DrawLabelValue(dc, "Typ", planningItem is PlanSum ? "PlanSum" : "PlanSetup", margin + 520, y, 170, regular, bold, culture);
 
                 y += 30;
-                string orientationText = RenderUtils.GetGermanOrientationText(ReflectionUtils.FirstNonEmpty(
+                string rawOrientation = ReflectionUtils.FirstNonEmpty(
                     ReflectionUtils.GetStringProperty(planningItem, "TreatmentOrientation"),
-                    ReflectionUtils.GetStringProperty(structureSet != null ? (object)structureSet.Image : null, "ImagingOrientation")));
+                    ReflectionUtils.GetStringProperty(structureSet != null ? (object)structureSet.Image : null, "ImagingOrientation"));
+                string positionCode = RenderUtils.GetPatientPositionCode(rawOrientation);
+                string orientationText = RenderUtils.GetGermanOrientationText(rawOrientation);
                 string imageId = structureSet != null && structureSet.Image != null ? structureSet.Image.Id : "";
                 string seriesId = structureSet != null ? ReflectionUtils.GetNestedStringProperty(structureSet.Image, "Series", "Id") : "";
                 DrawLabelValue(dc, "Orientation", orientationText, margin, y, 190, regular, bold, culture);
@@ -109,7 +111,10 @@ namespace EclipsePlanReport
                 y += 58;
                 DrawSectionTitle(dc, "Fields", margin, y, width - 2 * margin, headerFill, linePen, bold, culture);
                 y += 36;
-                List<BeamReportRow> rows = BuildBeamReportRows(planningItem, GetUserOrigin(structureSet));
+                List<BeamReportRow> rows = BuildBeamReportRows(
+                    planningItem,
+                    structureSet != null ? structureSet.Image : null,
+                    positionCode);
                 double tableWidth = width - 2 * margin;
                 double[] col = { 0, 110, 245, 430, 625, 805, 930, 1035, 1138, 1300, 1415, 1510, tableWidth };
                 string[] headers =
@@ -246,35 +251,21 @@ namespace EclipsePlanReport
 
         // ---------- Felder-Tabelle ----------
 
-        /// <summary>User-Origin des Planungsbildes (fuer Eclipse-konforme Isozentrum-Angaben).</summary>
-        private static VVector? GetUserOrigin(StructureSet structureSet)
-        {
-            try
-            {
-                if (structureSet != null && structureSet.Image != null)
-                    return structureSet.Image.UserOrigin;
-            }
-            catch
-            {
-            }
-            return null;
-        }
-
         /// <summary>
         /// Felderzeilen wie im Eclipse-Druck: Behandlungsfelder zuerst, Setup-Felder
         /// (z.B. kVCBCT) am Ende mit der Kennzeichnung "Setup-Feld" statt MU.
         /// </summary>
-        private static List<BeamReportRow> BuildBeamReportRows(PlanningItem planningItem, VVector? userOrigin)
+        private static List<BeamReportRow> BuildBeamReportRows(PlanningItem planningItem, Image image, string patientPositionCode)
         {
             var beams = ReflectionUtils.GetEnumerableProperty(planningItem, "Beams").ToList();
             return beams
                 .Where(beam => !ReflectionUtils.GetBoolProperty(beam, "IsSetupField"))
                 .Concat(beams.Where(beam => ReflectionUtils.GetBoolProperty(beam, "IsSetupField")))
-                .Select(beam => BuildBeamReportRow(beam, userOrigin))
+                .Select(beam => BuildBeamReportRow(beam, image, patientPositionCode))
                 .ToList();
         }
 
-        private static BeamReportRow BuildBeamReportRow(object beam, VVector? userOrigin)
+        private static BeamReportRow BuildBeamReportRow(object beam, Image image, string patientPositionCode)
         {
             bool isSetupField = ReflectionUtils.GetBoolProperty(beam, "IsSetupField");
             object firstControlPoint = ReflectionUtils.GetFirstEnumerableItem(ReflectionUtils.GetPropertyValue(beam, "ControlPoints"));
@@ -314,7 +305,7 @@ namespace EclipsePlanReport
                 Gantry = FormatGantry(firstControlPoint, lastControlPoint, beam),
                 Collimator = FormatAngle(ReflectionUtils.GetPropertyValue(firstControlPoint, "CollimatorAngle")),
                 Table = FormatAngle(ReflectionUtils.GetPropertyValue(firstControlPoint, "PatientSupportAngle")),
-                Isocenter = FormatIsocenterEclipse(isocenter, userOrigin),
+                Isocenter = FormatIsocenterEclipse(isocenter, image, patientPositionCode),
                 MlcWedge = mlcWedge,
                 BolusSsd = bolusSsd,
                 Dose = isSetupField ? "" : FormatDoseValue(ReflectionUtils.GetPropertyValue(beam, "Dose")),
@@ -323,10 +314,10 @@ namespace EclipsePlanReport
         }
 
         /// <summary>
-        /// Isozentrum wie im Eclipse-Planbericht: relativ zum User-Origin,
-        /// X (lat) = DICOM x, Y (lng) = DICOM z, Z (vrt) = -DICOM y (HFS-Konvention).
+        /// Isozentrum wie im Eclipse-Planbericht: relativ zum User-Origin und passend
+        /// zur erkannten Patientenlagerung.
         /// </summary>
-        private static string FormatIsocenterEclipse(object vector, VVector? userOrigin)
+        private static string FormatIsocenterEclipse(object vector, Image image, string patientPositionCode)
         {
             double? x = ReflectionUtils.GetNumericMember(vector, "x");
             double? y = ReflectionUtils.GetNumericMember(vector, "y");
@@ -336,19 +327,13 @@ namespace EclipsePlanReport
             if (double.IsNaN(x.Value) || double.IsNaN(y.Value) || double.IsNaN(z.Value))
                 return "";
 
-            double relX = x.Value, relY = y.Value, relZ = z.Value;
-            if (userOrigin.HasValue)
-            {
-                relX -= userOrigin.Value.x;
-                relY -= userOrigin.Value.y;
-                relZ -= userOrigin.Value.z;
-            }
+            VVector rel = RenderUtils.ComputeEclipseUserCoordinatesCm(image, new VVector(x.Value, y.Value, z.Value), patientPositionCode);
 
             return string.Format(RenderUtils.Num,
                 "X: {0:0.00} cm (lat)\nY: {1:0.00} cm (lng)\nZ: {2:0.00} cm (vrt)",
-                relX / 10.0,
-                relZ / 10.0,
-                -relY / 10.0);
+                rel.x,
+                rel.y,
+                rel.z);
         }
 
         private static string BuildNormalizationText(object planningItem)

@@ -385,7 +385,7 @@ namespace EclipsePlanReport
                 DrawImageOverlayText(dc, rightText, targetX + targetW - rightText.Width - labelPadding, imgCenterY - rightText.Height / 2.0, labelBgPadX, labelBgPadY);
 
                 // Z-Position oben links im Bild statt am cm-Lineal.
-                double zEclipseCm = ComputeEclipseZcm(image, sliceZ);
+                double zEclipseCm = ComputeEclipseZcm(image, sliceZ, positionCode);
                 var zText = RenderUtils.CreateFormattedText(
                     string.Format(culture, "Z: {0:+0.00;-0.00;0.00} cm", zEclipseCm),
                     RenderUtils.ScaleSliceFont(16), Brushes.Red, boldTypeface, culture);
@@ -626,27 +626,9 @@ namespace EclipsePlanReport
         }
 
         /// <summary>Z-Koordinate der Schicht relativ zum User-Origin in cm (Eclipse-Anzeige).</summary>
-        public static double ComputeEclipseZcm(Image image, int sliceZ)
+        public static double ComputeEclipseZcm(Image image, int sliceZ, string patientPositionCode = "")
         {
-            VVector userOrigin;
-            try
-            {
-                userOrigin = image.UserOrigin;
-            }
-            catch
-            {
-                userOrigin = image.Origin;
-            }
-
-            VVector sliceOrigin = new VVector(
-                image.Origin.x + sliceZ * image.ZRes * image.ZDirection.x,
-                image.Origin.y + sliceZ * image.ZRes * image.ZDirection.y,
-                image.Origin.z + sliceZ * image.ZRes * image.ZDirection.z);
-
-            // Eclipse zeigt die transversale Z-Position als Patienten-Superior/Inferior-
-            // Koordinate relativ zum User-Origin. Die gespeicherte Slice-Richtung darf
-            // das Vorzeichen nicht drehen, sonst erscheinen HFS-Schichten invertiert.
-            return (sliceOrigin.z - userOrigin.z) / 10.0;
+            return RenderUtils.ComputeEclipseSliceZcm(image, sliceZ, patientPositionCode);
         }
 
         private static VVector GetUserOriginCm(Image image)

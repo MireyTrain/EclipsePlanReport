@@ -256,15 +256,16 @@ namespace EclipsePlanReport
                 sliceIndices.Add(z);
             if (!sliceIndices.Contains(lastSlice))
                 sliceIndices.Add(lastSlice);
+            string patientPositionCode = sliceContext != null ? sliceContext.PatientPositionCode : "";
             sliceIndices = sliceIndices
-                .OrderByDescending(z => SliceRenderer.ComputeEclipseZcm(ss.Image, z))
+                .OrderByDescending(z => SliceRenderer.ComputeEclipseZcm(ss.Image, z, patientPositionCode))
                 .ToList();
             var seriesViewBounds = SliceRenderer.GetSliceSeriesBodyViewBounds(body, ss.Image, sliceIndices);
 
             for (int i = 0; i < sliceIndices.Count; i++)
             {
                 int z = sliceIndices[i];
-                double zCm = SliceRenderer.ComputeEclipseZcm(ss.Image, z);
+                double zCm = SliceRenderer.ComputeEclipseZcm(ss.Image, z, patientPositionCode);
                 string sliceFilename = RenderUtils.MakeFilenameValid(string.Format(
                     RenderUtils.Num,
                     "{0}_{1}_04_{2}_Schicht{3:00}_Z{4:+0.00;-0.00;0.00}cm.png",
@@ -288,8 +289,8 @@ namespace EclipsePlanReport
 
             log(string.Format("  {0} CT-Schichten gedruckt (Z {1:+0.00;-0.00;0.00} bis {2:+0.00;-0.00;0.00} cm).",
                 sliceIndices.Count,
-                SliceRenderer.ComputeEclipseZcm(ss.Image, sliceIndices.First()),
-                SliceRenderer.ComputeEclipseZcm(ss.Image, sliceIndices.Last())));
+                SliceRenderer.ComputeEclipseZcm(ss.Image, sliceIndices.First(), patientPositionCode),
+                SliceRenderer.ComputeEclipseZcm(ss.Image, sliceIndices.Last(), patientPositionCode)));
         }
 
         private static void AddIfExists(List<string> paths, string path)

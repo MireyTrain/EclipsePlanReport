@@ -493,6 +493,73 @@ namespace EclipsePlanReport
             return IsPronePosition(patientPositionCode) || IsFeetFirstDecubitusPosition(patientPositionCode);
         }
 
+        public static VVector ComputeEclipseUserCoordinatesCm(Image image, VVector point, string patientPositionCode)
+        {
+            VVector userOrigin = GetImageUserOriginOrOrigin(image);
+            VVector rel = new VVector(
+                point.x - userOrigin.x,
+                point.y - userOrigin.y,
+                point.z - userOrigin.z);
+
+            VVector xAxis, yAxis, zAxis;
+            GetEclipseUserCoordinateAxes(patientPositionCode, out xAxis, out yAxis, out zAxis);
+
+            return new VVector(
+                Dot(rel, xAxis) / 10.0,
+                Dot(rel, yAxis) / 10.0,
+                Dot(rel, zAxis) / 10.0);
+        }
+
+        public static double ComputeEclipseSliceZcm(Image image, int sliceZ, string patientPositionCode)
+        {
+            if (image == null)
+                return 0;
+
+            VVector sliceOrigin = new VVector(
+                image.Origin.x + sliceZ * image.ZRes * image.ZDirection.x,
+                image.Origin.y + sliceZ * image.ZRes * image.ZDirection.y,
+                image.Origin.z + sliceZ * image.ZRes * image.ZDirection.z);
+
+            return ComputeEclipseUserCoordinatesCm(image, sliceOrigin, patientPositionCode).z;
+        }
+
+        private static VVector GetImageUserOriginOrOrigin(Image image)
+        {
+            if (image == null)
+                return new VVector();
+
+            try
+            {
+                return image.UserOrigin;
+            }
+            catch
+            {
+                return image.Origin;
+            }
+        }
+
+        private static void GetEclipseUserCoordinateAxes(string patientPositionCode, out VVector xAxis, out VVector yAxis, out VVector zAxis)
+        {
+            switch (patientPositionCode)
+            {
+                case "FFDR":
+                    xAxis = GetPatientDirectionVector("A");
+                    yAxis = GetPatientDirectionVector("R");
+                    zAxis = GetPatientDirectionVector("F");
+                    return;
+                case "FFDL":
+                    xAxis = GetPatientDirectionVector("P");
+                    yAxis = GetPatientDirectionVector("L");
+                    zAxis = GetPatientDirectionVector("F");
+                    return;
+                default:
+                    xAxis = GetPatientDirectionVector("L");
+                    yAxis = GetPatientDirectionVector("H");
+                    zAxis = GetPatientDirectionVector("A");
+                    return;
+            }
+        }
+
         public static string GetFrontalRightLabel(string patientPositionCode)
         {
             if (IsFeetFirstSupinePosition(patientPositionCode))
