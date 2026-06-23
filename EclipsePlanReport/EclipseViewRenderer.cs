@@ -29,7 +29,7 @@ namespace EclipsePlanReport
             StructureSet structureSet,
             ReportTemplate template,
             Structure target,
-            List<string> visibleStructureIds,
+            List<string> displayStructureIds,
             string filename,
             Action<string> log)
         {
@@ -138,7 +138,7 @@ namespace EclipsePlanReport
             }
 
             // ---- Strukturkonturen via Mesh-Schnitt (alle drei Ebenen) ----
-            List<Structure> visibleStructures = CollectVisibleStructures(structureSet, target, visibleStructureIds);
+            List<Structure> visibleStructures = CollectVisibleStructures(structureSet, target, displayStructureIds);
 
             var transSegs = new List<StructureSegments>();
             var sagSegs = new List<StructureSegments>();
@@ -291,7 +291,7 @@ namespace EclipsePlanReport
                 bool bevDrawn = false;
                 try
                 {
-                    List<Structure> bevTargets = CollectBevTargetStructures(planningItem as PlanSetup, structureSet, target);
+                    List<Structure> bevTargets = CollectBevTargetStructures(planningItem as PlanSetup, structureSet, target, displayStructureIds);
                     bevDrawn = TryDrawSetupFieldBev(dc, q4, planningItem as PlanSetup, bevTargets, ctVolume, typeface, log);
                 }
                 catch (Exception e)
@@ -325,10 +325,25 @@ namespace EclipsePlanReport
         /// Fallback: die zentrierte Zielstruktur, falls keine Objectives vorliegen
         /// (z. B. nicht optimierte Plaene).
         /// </summary>
-        private static List<Structure> CollectBevTargetStructures(PlanSetup planSetup, StructureSet structureSet, Structure fallbackTarget)
+        private static List<Structure> CollectBevTargetStructures(PlanSetup planSetup, StructureSet structureSet, Structure fallbackTarget, List<string> displayStructureIds)
         {
             var result = new List<Structure>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (displayStructureIds != null)
+            {
+                foreach (string id in displayStructureIds)
+                {
+                    if (string.IsNullOrEmpty(id) || !seen.Add(id))
+                        continue;
+
+                    Structure s = structureSet.Structures.FirstOrDefault(x =>
+                        !x.IsEmpty && x.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+                    if (s != null)
+                        result.Add(s);
+                }
+                return result;
+            }
 
             if (planSetup != null && structureSet != null)
             {
@@ -371,20 +386,21 @@ namespace EclipsePlanReport
         private static List<Structure> CollectVisibleStructures(StructureSet structureSet, Structure target, List<string> visibleStructureIds)
         {
             var result = new List<Structure>();
-            if (target != null && !target.IsEmpty)
-                result.Add(target);
-
-            if (visibleStructureIds != null)
+            if (visibleStructureIds == null)
             {
-                foreach (string id in visibleStructureIds)
-                {
-                    if (result.Count >= 8)
-                        break;
-                    Structure s = structureSet.Structures.FirstOrDefault(x =>
-                        !x.IsEmpty && x.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
-                    if (s != null && !result.Contains(s))
-                        result.Add(s);
-                }
+                if (target != null && !target.IsEmpty)
+                    result.Add(target);
+                return result;
+            }
+
+            foreach (string id in visibleStructureIds)
+            {
+                if (string.IsNullOrEmpty(id))
+                    continue;
+                Structure s = structureSet.Structures.FirstOrDefault(x =>
+                    !x.IsEmpty && x.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+                if (s != null && !result.Any(existing => existing.Id.Equals(s.Id, StringComparison.OrdinalIgnoreCase)))
+                    result.Add(s);
             }
 
             return result;
@@ -751,7 +767,7 @@ namespace EclipsePlanReport
                 beam.IsSetupField ? "Setup-Feld " : "Feld ",
                 beam.Id, projectionGantryDeg, drrLabel);
             string ptvList = targets != null && targets.Count > 0
-                ? "   ZV: " + string.Join(", ", targets.Where(t => t != null).Select(t => t.Id))
+                ? "   Strukturen: " + string.Join(", ", targets.Where(t => t != null).Select(t => t.Id))
                 : "";
             string positionLabel = string.Format(RenderUtils.Num, "Koll: {0:F1}°{1}", collDeg, ptvList);
 

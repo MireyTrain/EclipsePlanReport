@@ -120,7 +120,7 @@ namespace EclipsePlanReport
                     try
                     {
                         string viewPath = Path.Combine(runFolder, RenderUtils.MakeFilenameValid(string.Format("{0}_{1}_02_Ansicht.png", patient.Id, planItemId)));
-                        EclipseViewRenderer.RenderViewPage(patient, planningItem, ss, template, target, request.SelectedDvhStructureIds, viewPath, log);
+                        EclipseViewRenderer.RenderViewPage(patient, planningItem, ss, template, target, request.SelectedDisplayStructureIds, viewPath, log);
                         AddIfExists(generatedImagePaths, viewPath);
                     }
                     catch (Exception e)
@@ -161,7 +161,7 @@ namespace EclipsePlanReport
                         {
                             phaseWatch.Restart();
                             SlicePageContext sliceContext = BuildSlicePageContext(patient, planningItem, ss, request.CourseId, planItemId);
-                            RenderSliceSeries(patient, planningItem, ss, template, target, body, runFolder, planItemId, sliceContext, generatedImagePaths, planBase + planShare * 0.5, planShare * 0.5);
+                            RenderSliceSeries(patient, planningItem, ss, template, target, request.SelectedDisplayStructureIds, body, runFolder, planItemId, sliceContext, generatedImagePaths, planBase + planShare * 0.5, planShare * 0.5);
                             log(string.Format(RenderUtils.Num, "  Zeit CT-Schichten: {0:F1} s", phaseWatch.Elapsed.TotalSeconds));
                         }
                     }
@@ -229,6 +229,7 @@ namespace EclipsePlanReport
             StructureSet ss,
             ReportTemplate template,
             Structure target,
+            List<string> displayStructureIds,
             Structure body,
             string runFolder,
             string planItemId,
@@ -271,7 +272,7 @@ namespace EclipsePlanReport
                     sliceContext.PageNumber = i + 1;
                     sliceContext.PageCount = sliceIndices.Count;
                     var sliceViewBounds = SliceRenderer.GetSliceBodyViewBounds(body, ss.Image, z);
-                    SliceRenderer.RenderSlicePage(ss.Image, z, ss, planningItem, template, target, body, slicePath, sliceViewBounds, sliceContext, log);
+                    SliceRenderer.RenderSlicePage(ss.Image, z, ss, planningItem, template, target, displayStructureIds, body, slicePath, sliceViewBounds, sliceContext, log);
                     AddIfExists(generatedImagePaths, slicePath);
                 }
                 catch (Exception e)

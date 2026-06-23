@@ -185,6 +185,7 @@ namespace EclipsePlanReport
             PlanningItem planningItem,
             ReportTemplate template,
             Structure sliceTarget,
+            List<string> displayStructureIds,
             Structure body,
             string filename,
             Rect? bodyBounds,
@@ -296,6 +297,7 @@ namespace EclipsePlanReport
                     planningItem,
                     template,
                     sliceTarget,
+                    displayStructureIds,
                     body,
                     viewBounds,
                     dose,
@@ -392,6 +394,7 @@ namespace EclipsePlanReport
             PlanningItem planningItem,
             ReportTemplate template,
             Structure sliceTarget,
+            List<string> displayStructureIds,
             Structure body,
             Rect? viewBounds,
             Dose dose,
@@ -452,13 +455,13 @@ namespace EclipsePlanReport
             int contourSegmentCount = 0;
             if (structureSet != null)
             {
-                foreach (var structure in GetSliceContourStructures(structureSet, sliceTarget, template, sliceZ))
+                foreach (var structure in GetSliceContourStructures(structureSet, sliceTarget, template, displayStructureIds, sliceZ))
                     contourSegmentCount += DrawStructureContours(dc, structure, image, sliceZ, viewBounds, drawScale);
             }
             if (contourSegmentCount == 0 && log != null)
             {
                 string targetId = sliceTarget != null ? sliceTarget.Id : "(kein Ziel)";
-                log(string.Format("  Warnung: keine Zielkontur auf CT-Schicht {0} gezeichnet (Ziel: {1}).", sliceZ, targetId));
+                log(string.Format("  Hinweis: keine Anzeige-Kontur auf CT-Schicht {0} gezeichnet (Schicht-Ziel: {1}).", sliceZ, targetId));
             }
 
             if (bodyClip != null)
@@ -475,9 +478,23 @@ namespace EclipsePlanReport
             StructureSet structureSet,
             Structure sliceTarget,
             ReportTemplate template,
+            List<string> displayStructureIds,
             int sliceZ)
         {
             var result = new List<Structure>();
+            if (displayStructureIds != null)
+            {
+                foreach (string id in displayStructureIds)
+                {
+                    if (string.IsNullOrEmpty(id))
+                        continue;
+                    Structure structure = structureSet.Structures.FirstOrDefault(s =>
+                        !s.IsEmpty && s.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+                    AddVisibleSliceStructure(result, structure, sliceZ);
+                }
+                return result;
+            }
+
             AddVisibleSliceStructure(result, sliceTarget, sliceZ);
 
             if (structureSet == null || template == null)

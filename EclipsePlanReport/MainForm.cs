@@ -18,7 +18,9 @@ namespace EclipsePlanReport
         private Patient currentPatient;
         private List<ReportTemplate> templates = new List<ReportTemplate>();
         private List<PlanRequest> planRequests = new List<PlanRequest>();
+        private PlanRequest currentDisplayPlan;
         private PlanRequest currentDvhPlan;
+        private bool displayListLoading;
         private bool dvhListLoading;
         private string lastPdfPath;
 
@@ -30,6 +32,11 @@ namespace EclipsePlanReport
         private Forms.CheckBox chkDarkMode;
         private Forms.Label lblPatientInfo;
         private Forms.DataGridView grid;
+        private Forms.Label lblDisplayTitle;
+        private Forms.CheckedListBox clbDisplay;
+        private Forms.Button btnDisplayRecommended;
+        private Forms.Button btnDisplayAll;
+        private Forms.Button btnDisplayNone;
         private Forms.Label lblDvhTitle;
         private Forms.CheckedListBox clbDvh;
         private Forms.Button btnDvhRecommended;
@@ -58,8 +65,8 @@ namespace EclipsePlanReport
         {
             Text = "Eclipse PlanReport";
             StartPosition = Forms.FormStartPosition.CenterScreen;
-            ClientSize = new System.Drawing.Size(1280, 820);
-            MinimumSize = new System.Drawing.Size(1100, 720);
+            ClientSize = new System.Drawing.Size(1440, 820);
+            MinimumSize = new System.Drawing.Size(1280, 720);
 
             // Kopfzeile
             var lblPatient = new Forms.Label { Text = "Patient-ID", Left = 12, Top = 18, Width = 70 };
@@ -129,7 +136,7 @@ namespace EclipsePlanReport
             {
                 Left = 12,
                 Top = 76,
-                Width = ClientSize.Width - 12 - 340 - 12,
+                Width = ClientSize.Width - 12 - 520 - 12,
                 Height = 510,
                 Anchor = Forms.AnchorStyles.Top | Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Left | Forms.AnchorStyles.Right,
                 AllowUserToAddRows = false,
@@ -158,25 +165,73 @@ namespace EclipsePlanReport
             };
             grid.CellValueChanged += Grid_CellValueChanged;
             grid.CellContentClick += Grid_CellContentClick;
-            grid.SelectionChanged += (s, e) => RefreshDvhPanel();
+            grid.SelectionChanged += (s, e) => RefreshStructurePanels();
             grid.DataError += (s, e) => { e.ThrowException = false; };
 
-            // DVH-Panel rechts
-            int panelLeft = ClientSize.Width - 340;
-            lblDvhTitle = new Forms.Label
+            // Struktur-Panels rechts
+            int panelLeft = ClientSize.Width - 520;
+            int listWidth = 248;
+            int dvhLeft = panelLeft + listWidth + 12;
+            lblDisplayTitle = new Forms.Label
             {
                 Left = panelLeft,
                 Top = 76,
-                Width = 328,
+                Width = listWidth,
+                Height = 34,
+                Anchor = Forms.AnchorStyles.Top | Forms.AnchorStyles.Right,
+                Text = "Anzeige-Strukturen"
+            };
+            clbDisplay = new Forms.CheckedListBox
+            {
+                Left = panelLeft,
+                Top = 112,
+                Width = listWidth,
+                Height = 436,
+                Anchor = Forms.AnchorStyles.Top | Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right,
+                CheckOnClick = true,
+                IntegralHeight = false
+            };
+            clbDisplay.ItemCheck += ClbDisplay_ItemCheck;
+
+            btnDisplayRecommended = new Forms.Button
+            {
+                Text = "Empfohlen",
+                Left = panelLeft,
+                Top = 554,
+                Width = 92,
+                Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right
+            };
+            btnDisplayAll = new Forms.Button
+            {
+                Text = "Alle",
+                Left = panelLeft + 98,
+                Top = 554,
+                Width = 64,
+                Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right
+            };
+            btnDisplayNone = new Forms.Button
+            {
+                Text = "Keine",
+                Left = panelLeft + 168,
+                Top = 554,
+                Width = 64,
+                Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right
+            };
+
+            lblDvhTitle = new Forms.Label
+            {
+                Left = dvhLeft,
+                Top = 76,
+                Width = listWidth,
                 Height = 34,
                 Anchor = Forms.AnchorStyles.Top | Forms.AnchorStyles.Right,
                 Text = "DVH-Strukturen"
             };
             clbDvh = new Forms.CheckedListBox
             {
-                Left = panelLeft,
+                Left = dvhLeft,
                 Top = 112,
-                Width = 328,
+                Width = listWidth,
                 Height = 436,
                 Anchor = Forms.AnchorStyles.Top | Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right,
                 CheckOnClick = true,
@@ -187,27 +242,30 @@ namespace EclipsePlanReport
             btnDvhRecommended = new Forms.Button
             {
                 Text = "Empfohlen",
-                Left = panelLeft,
+                Left = dvhLeft,
                 Top = 554,
-                Width = 100,
+                Width = 92,
                 Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right
             };
             btnDvhAll = new Forms.Button
             {
                 Text = "Alle",
-                Left = panelLeft + 108,
+                Left = dvhLeft + 98,
                 Top = 554,
-                Width = 70,
+                Width = 64,
                 Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right
             };
             btnDvhNone = new Forms.Button
             {
                 Text = "Keine",
-                Left = panelLeft + 186,
+                Left = dvhLeft + 168,
                 Top = 554,
-                Width = 70,
+                Width = 64,
                 Anchor = Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Right
             };
+            btnDisplayRecommended.Click += (s, e) => ApplyRecommendedDisplay();
+            btnDisplayAll.Click += (s, e) => SetAllDisplayChecks(true);
+            btnDisplayNone.Click += (s, e) => SetAllDisplayChecks(false);
             btnDvhRecommended.Click += (s, e) => ApplyRecommendedDvh();
             btnDvhAll.Click += (s, e) => SetAllDvhChecks(true);
             btnDvhNone.Click += (s, e) => SetAllDvhChecks(false);
@@ -287,6 +345,7 @@ namespace EclipsePlanReport
                 lblFont, numFontScale, chkDarkMode,
                 lblPatientInfo,
                 grid,
+                lblDisplayTitle, clbDisplay, btnDisplayRecommended, btnDisplayAll, btnDisplayNone,
                 lblDvhTitle, clbDvh, btnDvhRecommended, btnDvhAll, btnDvhNone,
                 txtLog, progressBar,
                 btnOpenFolder, btnOpenPdf, btnStart
@@ -409,7 +468,7 @@ namespace EclipsePlanReport
                     currentPatient = null;
                     grid.Rows.Clear();
                     planRequests.Clear();
-                    ClearDvhPanel();
+                    ClearStructurePanels();
                 }
 
                 currentPatient = esapiApp.OpenPatientById(patientId);
@@ -467,6 +526,7 @@ namespace EclipsePlanReport
                         PrescriptionInfo = BuildPrescriptionInfo(planSetup),
                         StatusInfo = ReflectionUtils.GetStringProperty(planSetup, "ApprovalStatus"),
                         AvailableSliceTargetIds = GetAvailableSliceTargetIds(planSetup.StructureSet),
+                        AvailableDisplayStructureIds = GetAvailableDisplayStructureIds(planSetup.StructureSet),
                         AvailableDvhStructureIds = GetAvailableDvhStructureIds(planSetup.StructureSet)
                     };
                     try
@@ -479,6 +539,7 @@ namespace EclipsePlanReport
                     }
                     request.SliceTargetId = SelectDefaultSliceTargetId(request, planSetup.TargetVolumeID);
                     request.TemplateId = ReportEngine.InferTemplateIdForPlan(templates, request.PlanId, false);
+                    request.SelectedDisplayStructureIds = BuildRecommendedDisplayStructureIds(request, templates);
                     request.SelectedDvhStructureIds = DvhRecommendation.BuildRecommendedDvhStructureIds(request, templates);
                     requests.Add(request);
                 }
@@ -494,10 +555,12 @@ namespace EclipsePlanReport
                         PrescriptionInfo = BuildPlanSumInfo(planSum),
                         StatusInfo = "",
                         AvailableSliceTargetIds = GetAvailableSliceTargetIds(planSum.StructureSet),
+                        AvailableDisplayStructureIds = GetAvailableDisplayStructureIds(planSum.StructureSet),
                         AvailableDvhStructureIds = GetAvailableDvhStructureIds(planSum.StructureSet)
                     };
                     request.SliceTargetId = SelectDefaultSliceTargetId(request, null);
                     request.TemplateId = ReportEngine.InferTemplateIdForPlan(templates, request.PlanId, true);
+                    request.SelectedDisplayStructureIds = BuildRecommendedDisplayStructureIds(request, templates);
                     request.SelectedDvhStructureIds = DvhRecommendation.BuildRecommendedDvhStructureIds(request, templates);
                     requests.Add(request);
                 }
@@ -542,6 +605,11 @@ namespace EclipsePlanReport
                 .ToList();
         }
 
+        private static List<string> GetAvailableDisplayStructureIds(StructureSet structureSet)
+        {
+            return GetAvailableDvhStructureIds(structureSet);
+        }
+
         private static List<string> GetAvailableSliceTargetIds(StructureSet structureSet)
         {
             if (structureSet == null)
@@ -572,6 +640,47 @@ namespace EclipsePlanReport
                     return match;
             }
             return request.AvailableSliceTargetIds.FirstOrDefault() ?? "";
+        }
+
+        private static List<string> BuildRecommendedDisplayStructureIds(PlanRequest request, List<ReportTemplate> templates)
+        {
+            if (request == null || request.AvailableDisplayStructureIds == null)
+                return new List<string>();
+
+            var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(request.SliceTargetId))
+                selected.Add(request.SliceTargetId);
+
+            ReportTemplate template = templates.FirstOrDefault(t =>
+                t.Id.Equals(request.TemplateId ?? "", StringComparison.OrdinalIgnoreCase) ||
+                t.DisplayName.Equals(request.TemplateId ?? "", StringComparison.OrdinalIgnoreCase));
+            if (template != null)
+            {
+                foreach (string id in request.AvailableDisplayStructureIds)
+                {
+                    if (RenderUtils.MatchesAnyPattern(id, template.TargetPatterns) || LooksLikeDisplayTargetStructure(id))
+                        selected.Add(id);
+                }
+            }
+            else
+            {
+                foreach (string id in request.AvailableDisplayStructureIds.Where(LooksLikeDisplayTargetStructure))
+                    selected.Add(id);
+            }
+
+            return request.AvailableDisplayStructureIds
+                .Where(id => selected.Contains(id))
+                .ToList();
+        }
+
+        private static bool LooksLikeDisplayTargetStructure(string id)
+        {
+            string value = (id ?? "").ToUpperInvariant();
+            return value.Contains("PTV") ||
+                   value.Contains("CTV") ||
+                   value.Contains("GTV") ||
+                   value.Contains("ITV") ||
+                   value.Contains("BOOST");
         }
 
         // ---------- Grid ----------
@@ -607,7 +716,7 @@ namespace EclipsePlanReport
 
             if (grid.Rows.Count > 0)
                 grid.Rows[0].Selected = true;
-            RefreshDvhPanel();
+            RefreshStructurePanels();
         }
 
         /// <summary>Fuer Summenplaene stehen nur absolute Templates zur Auswahl.</summary>
@@ -655,6 +764,12 @@ namespace EclipsePlanReport
                     break;
                 case "SliceTargetId":
                     plan.SliceTargetId = Convert.ToString(row.Cells["SliceTargetId"].Value) ?? "";
+                    if (!plan.DisplaySelectionCustomized)
+                    {
+                        plan.SelectedDisplayStructureIds = BuildRecommendedDisplayStructureIds(plan, templates);
+                        if (plan == currentDisplayPlan)
+                            RefreshStructurePanels();
+                    }
                     break;
                 case "TemplateId":
                     plan.TemplateId = GetTemplateIdByDisplayName(Convert.ToString(row.Cells["TemplateId"].Value));
@@ -664,11 +779,17 @@ namespace EclipsePlanReport
                         row.Cells["EditIsodoses"].Value = GetIsodoseButtonText(plan);
                         Log(string.Format("{0}: Template gewechselt - angepasste Isodosen verworfen.", plan.PlanId));
                     }
+                    if (!plan.DisplaySelectionCustomized)
+                    {
+                        plan.SelectedDisplayStructureIds = BuildRecommendedDisplayStructureIds(plan, templates);
+                        if (plan == currentDisplayPlan)
+                            RefreshStructurePanels();
+                    }
                     if (!plan.DvhSelectionCustomized)
                     {
                         plan.SelectedDvhStructureIds = DvhRecommendation.BuildRecommendedDvhStructureIds(plan, templates);
                         if (plan == currentDvhPlan)
-                            RefreshDvhPanel();
+                            RefreshStructurePanels();
                     }
                     break;
             }
@@ -759,9 +880,9 @@ namespace EclipsePlanReport
             }
         }
 
-        // ---------- DVH-Panel ----------
+        // ---------- Struktur-Panels ----------
 
-        private void RefreshDvhPanel()
+        private void RefreshStructurePanels()
         {
             PlanRequest plan = null;
             if (grid.SelectedRows.Count > 0)
@@ -769,14 +890,27 @@ namespace EclipsePlanReport
             else if (grid.CurrentRow != null)
                 plan = grid.CurrentRow.Tag as PlanRequest;
 
+            currentDisplayPlan = plan;
             currentDvhPlan = plan;
             if (plan == null)
             {
-                ClearDvhPanel();
+                ClearStructurePanels();
                 return;
             }
 
+            lblDisplayTitle.Text = string.Format("Anzeige-Strukturen: {0} ({1})", plan.PlanId, plan.CourseId);
             lblDvhTitle.Text = string.Format("DVH-Strukturen: {0} ({1})", plan.PlanId, plan.CourseId);
+
+            displayListLoading = true;
+            clbDisplay.BeginUpdate();
+            clbDisplay.Items.Clear();
+            foreach (string structureId in plan.AvailableDisplayStructureIds)
+            {
+                bool isChecked = plan.SelectedDisplayStructureIds.Contains(structureId, StringComparer.OrdinalIgnoreCase);
+                clbDisplay.Items.Add(structureId, isChecked);
+            }
+            clbDisplay.EndUpdate();
+            displayListLoading = false;
 
             dvhListLoading = true;
             clbDvh.BeginUpdate();
@@ -790,13 +924,37 @@ namespace EclipsePlanReport
             dvhListLoading = false;
         }
 
-        private void ClearDvhPanel()
+        private void ClearStructurePanels()
         {
+            currentDisplayPlan = null;
             currentDvhPlan = null;
+            lblDisplayTitle.Text = "Anzeige-Strukturen";
             lblDvhTitle.Text = "DVH-Strukturen";
+            displayListLoading = true;
+            clbDisplay.Items.Clear();
+            displayListLoading = false;
             dvhListLoading = true;
             clbDvh.Items.Clear();
             dvhListLoading = false;
+        }
+
+        private void ClbDisplay_ItemCheck(object sender, Forms.ItemCheckEventArgs e)
+        {
+            if (displayListLoading || currentDisplayPlan == null)
+                return;
+
+            string structureId = clbDisplay.Items[e.Index].ToString();
+            currentDisplayPlan.DisplaySelectionCustomized = true;
+
+            if (e.NewValue == Forms.CheckState.Checked)
+            {
+                if (!currentDisplayPlan.SelectedDisplayStructureIds.Contains(structureId, StringComparer.OrdinalIgnoreCase))
+                    currentDisplayPlan.SelectedDisplayStructureIds.Add(structureId);
+            }
+            else
+            {
+                currentDisplayPlan.SelectedDisplayStructureIds.RemoveAll(id => id.Equals(structureId, StringComparison.OrdinalIgnoreCase));
+            }
         }
 
         private void ClbDvh_ItemCheck(object sender, Forms.ItemCheckEventArgs e)
@@ -818,13 +976,33 @@ namespace EclipsePlanReport
             }
         }
 
+        private void ApplyRecommendedDisplay()
+        {
+            if (currentDisplayPlan == null)
+                return;
+            currentDisplayPlan.SelectedDisplayStructureIds = BuildRecommendedDisplayStructureIds(currentDisplayPlan, templates);
+            currentDisplayPlan.DisplaySelectionCustomized = false;
+            RefreshStructurePanels();
+        }
+
         private void ApplyRecommendedDvh()
         {
             if (currentDvhPlan == null)
                 return;
             currentDvhPlan.SelectedDvhStructureIds = DvhRecommendation.BuildRecommendedDvhStructureIds(currentDvhPlan, templates);
             currentDvhPlan.DvhSelectionCustomized = false;
-            RefreshDvhPanel();
+            RefreshStructurePanels();
+        }
+
+        private void SetAllDisplayChecks(bool value)
+        {
+            if (currentDisplayPlan == null)
+                return;
+            currentDisplayPlan.DisplaySelectionCustomized = true;
+            currentDisplayPlan.SelectedDisplayStructureIds = value
+                ? new List<string>(currentDisplayPlan.AvailableDisplayStructureIds)
+                : new List<string>();
+            RefreshStructurePanels();
         }
 
         private void SetAllDvhChecks(bool value)
@@ -835,7 +1013,7 @@ namespace EclipsePlanReport
             currentDvhPlan.SelectedDvhStructureIds = value
                 ? new List<string>(currentDvhPlan.AvailableDvhStructureIds)
                 : new List<string>();
-            RefreshDvhPanel();
+            RefreshStructurePanels();
         }
 
         // ---------- Bericht erstellen ----------
@@ -926,6 +1104,10 @@ namespace EclipsePlanReport
             numFontScale.Enabled = !busy;
             chkDarkMode.Enabled = !busy;
             grid.Enabled = !busy;
+            clbDisplay.Enabled = !busy;
+            btnDisplayRecommended.Enabled = !busy;
+            btnDisplayAll.Enabled = !busy;
+            btnDisplayNone.Enabled = !busy;
             clbDvh.Enabled = !busy;
             btnDvhRecommended.Enabled = !busy;
             btnDvhAll.Enabled = !busy;

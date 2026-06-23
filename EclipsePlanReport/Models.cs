@@ -19,9 +19,12 @@ namespace EclipsePlanReport
         public string SliceTargetId { get; set; }
         public string PrescriptionInfo { get; set; }
         public string StatusInfo { get; set; }
+        public bool DisplaySelectionCustomized { get; set; }
         public bool DvhSelectionCustomized { get; set; }
         public List<string> AvailableSliceTargetIds { get; set; }
+        public List<string> AvailableDisplayStructureIds { get; set; }
         public List<string> AvailableDvhStructureIds { get; set; }
+        public List<string> SelectedDisplayStructureIds { get; set; }
         public List<string> SelectedDvhStructureIds { get; set; }
 
         /// <summary>Verordnete Gesamtdosis in Gy (0 = unbekannt, z. B. Summenplan) - fuer %-Gy-Umrechnung im Isodosen-Editor.</summary>
@@ -35,7 +38,9 @@ namespace EclipsePlanReport
         public PlanRequest()
         {
             AvailableSliceTargetIds = new List<string>();
+            AvailableDisplayStructureIds = new List<string>();
             AvailableDvhStructureIds = new List<string>();
+            SelectedDisplayStructureIds = new List<string>();
             SelectedDvhStructureIds = new List<string>();
             Selected = true;
             ExportDvh = true;
