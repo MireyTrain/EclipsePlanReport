@@ -578,7 +578,10 @@ namespace EclipsePlanReport
 
         public static string GetSagittalRightLabel(string patientPositionCode)
         {
-            return IsFeetFirstSupinePosition(patientPositionCode) ? "A" : "P";
+            if (patientPositionCode == "HFS" || IsFeetFirstSupinePosition(patientPositionCode))
+                return "A";
+
+            return "P";
         }
 
         public static string GetSagittalDownLabel(string patientPositionCode)

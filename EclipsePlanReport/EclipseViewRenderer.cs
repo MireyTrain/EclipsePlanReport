@@ -248,7 +248,7 @@ namespace EclipsePlanReport
                         DrawCrosshair(innerDc, cxMm, cyMm, image.XSize * image.XRes, image.YSize * image.YRes, penScale, SagPlaneColor, FroPlaneColor);
                     },
                     string.Format(culture, "Z: {0:+0.00;-0.00;0.00} cm", SliceRenderer.ComputeEclipseZcm(image, zc, positionCode)),
-                    doseInfoLabel,
+                    "",
                     typeface,
                     RenderUtils.ManikinView.Transversal);
 
@@ -273,7 +273,7 @@ namespace EclipsePlanReport
                         DrawCrosshair(innerDc, cyMm, czMm, image.YSize * image.YRes, image.ZSize * image.ZRes, penScale, FroPlaneColor, TransPlaneColor);
                     },
                     string.Format(culture, "X: {0:+0.00;-0.00;0.00} cm", userRel.x),
-                    doseInfoLabel,
+                    "",
                     typeface,
                     RenderUtils.ManikinView.Sagittal);
 
@@ -298,7 +298,7 @@ namespace EclipsePlanReport
                         DrawCrosshair(innerDc, cxMm, czMm, image.XSize * image.XRes, image.ZSize * image.ZRes, penScale, SagPlaneColor, TransPlaneColor);
                     },
                     string.Format(culture, "Y: {0:+0.00;-0.00;0.00} cm", userRel.y),
-                    doseInfoLabel,
+                    "",
                     typeface,
                     RenderUtils.ManikinView.Frontal);
 
@@ -307,7 +307,7 @@ namespace EclipsePlanReport
                 try
                 {
                     List<Structure> bevTargets = CollectBevTargetStructures(planningItem as PlanSetup, structureSet, target, displayStructureIds);
-                    bevDrawn = TryDrawSetupFieldBev(dc, q4, planningItem as PlanSetup, bevTargets, ctVolume, typeface, log);
+                    bevDrawn = TryDrawSetupFieldBev(dc, q4, planningItem as PlanSetup, bevTargets, ctVolume, doseInfoLabel, typeface, log);
                 }
                 catch (Exception e)
                 {
@@ -677,6 +677,7 @@ namespace EclipsePlanReport
             PlanSetup planSetup,
             List<Structure> targets,
             CtVolume ctVolume,
+            string doseInfoLabel,
             Typeface typeface,
             Action<string> log)
         {
@@ -901,7 +902,7 @@ namespace EclipsePlanReport
                     }
                 },
                 positionLabel,
-                "",
+                doseInfoLabel,
                 typeface,
                 RenderUtils.ManikinView.Frontal,
                 bevManikinDisplay);
