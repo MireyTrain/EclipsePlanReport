@@ -28,7 +28,9 @@ namespace EclipsePlanReport
             Brush headerFill = Theme.SectionFill;
             Pen linePen = new Pen(Theme.SeparatorLine, 1.0);
             Pen lightPen = new Pen(Theme.GridLine, 0.8);
+            var pdfTextRuns = new List<VectorPdfTextRun>();
 
+            using (RenderUtils.BeginPdfTextCapture(pdfTextRuns))
             using (DrawingContext dc = visual.RenderOpen())
             {
                 dc.DrawRectangle(Theme.PageBackground, null, new Rect(0, 0, width, height));
@@ -204,7 +206,7 @@ namespace EclipsePlanReport
                 RenderUtils.DrawText(dc, "Planbericht aus ESAPI-Daten. Nicht verfuegbare Felder bleiben leer.", margin, height - 40, 10.5, mutedBrush, regular, culture);
             }
 
-            RenderUtils.SaveVisualAsPng(visual, width, height, filename);
+            RenderUtils.SaveVisualAsPng(visual, width, height, filename, pdfTextRuns);
         }
 
         public static string GetPlanningItemId(PlanningItem planningItem)

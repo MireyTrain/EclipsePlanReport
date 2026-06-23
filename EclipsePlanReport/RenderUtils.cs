@@ -63,6 +63,9 @@ namespace EclipsePlanReport
         /// <summary>Globale Schriftskalierung (GUI-Einstellung).</summary>
         public static double FontScale = 1.0;
 
+        [ThreadStatic]
+        private static List<VectorPdfTextRun> currentPdfTextCapture;
+
         public static double ScaleFont(double fontSize)
         {
             return fontSize * FontScale;
@@ -77,7 +80,9 @@ namespace EclipsePlanReport
 
         public static void DrawText(DrawingContext dc, string text, double x, double y, double fontSize, Brush brush, Typeface typeface, CultureInfo culture)
         {
-            dc.DrawText(CreateFormattedText(text, ScaleFont(fontSize), brush, typeface, culture), new Point(x, y));
+            double effectiveFontSize = ScaleFont(fontSize);
+            dc.DrawText(CreateFormattedText(text, effectiveFontSize, brush, typeface, culture), new Point(x, y));
+            CapturePdfText(text, x, y, effectiveFontSize, typeface);
         }
 
         /// <summary>Zeichnet Text und verkleinert die Schrift, bis er in maxWidth passt (lesbar, nichts abgeschnitten).</summary>
@@ -104,6 +109,7 @@ namespace EclipsePlanReport
             }
 
             dc.DrawText(formattedText, new Point(x, y));
+            CapturePdfText(text, x, y, effectiveFontSize, typeface);
         }
 
         public static FormattedText CreateFormattedText(string text, double fontSize, Brush brush, Typeface typeface, CultureInfo culture)
@@ -125,7 +131,48 @@ namespace EclipsePlanReport
             return columns[index + 1] - columns[index];
         }
 
+        public static IDisposable BeginPdfTextCapture(List<VectorPdfTextRun> textRuns)
+        {
+            return new PdfTextCaptureScope(textRuns);
+        }
+
+        private static void CapturePdfText(string text, double x, double y, double fontSize, Typeface typeface)
+        {
+            if (currentPdfTextCapture == null || string.IsNullOrEmpty(text))
+                return;
+
+            currentPdfTextCapture.Add(new VectorPdfTextRun
+            {
+                Text = text.Replace('\r', ' ').Replace('\n', ' '),
+                X = x,
+                Y = y,
+                FontSize = fontSize,
+                Bold = typeface != null && typeface.Weight.ToOpenTypeWeight() >= FontWeights.SemiBold.ToOpenTypeWeight()
+            });
+        }
+
+        private class PdfTextCaptureScope : IDisposable
+        {
+            private readonly List<VectorPdfTextRun> previousCapture;
+
+            public PdfTextCaptureScope(List<VectorPdfTextRun> textRuns)
+            {
+                previousCapture = currentPdfTextCapture;
+                currentPdfTextCapture = textRuns;
+            }
+
+            public void Dispose()
+            {
+                currentPdfTextCapture = previousCapture;
+            }
+        }
+
         public static void SaveVisualAsPng(DrawingVisual visual, int width, int height, string filename)
+        {
+            SaveVisualAsPng(visual, width, height, filename, null);
+        }
+
+        public static void SaveVisualAsPng(DrawingVisual visual, int width, int height, string filename, List<VectorPdfTextRun> textRuns)
         {
             int outputWidth = (int)Math.Round(width * OutputScale);
             int outputHeight = (int)Math.Round(height * OutputScale);
@@ -141,7 +188,7 @@ namespace EclipsePlanReport
             }
 
             if (visual.Drawing != null)
-                VectorPdfPageStore.Register(filename, visual.Drawing.Clone(), width, height);
+                VectorPdfPageStore.Register(filename, visual.Drawing.Clone(), width, height, textRuns);
         }
 
         public static string MakeFilenameValid(string s)

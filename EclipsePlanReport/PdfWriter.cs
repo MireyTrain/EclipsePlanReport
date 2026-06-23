@@ -61,6 +61,8 @@ namespace EclipsePlanReport
         private static void CreateVectorPdf(List<VectorPdfPage> pages, string pdfPath, Action<string> log)
         {
             int nextObjectId = 3;
+            int regularFontObjectId = nextObjectId++;
+            int boldFontObjectId = nextObjectId++;
             List<VectorPdfPageObject> pageObjects = new List<VectorPdfPageObject>();
 
             foreach (VectorPdfPage page in pages)
@@ -97,6 +99,16 @@ namespace EclipsePlanReport
                     kids,
                     pageObjects.Count));
 
+                offsets[regularFontObjectId] = stream.Position;
+                WriteAscii(stream, string.Format(RenderUtils.Num,
+                    "{0} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n",
+                    regularFontObjectId));
+
+                offsets[boldFontObjectId] = stream.Position;
+                WriteAscii(stream, string.Format(RenderUtils.Num,
+                    "{0} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n",
+                    boldFontObjectId));
+
                 foreach (VectorPdfPageObject pageObject in pageObjects)
                 {
                     offsets[pageObject.PageObjectId] = stream.Position;
@@ -105,11 +117,13 @@ namespace EclipsePlanReport
                         xobjects.AppendFormat(RenderUtils.Num, "/{0} {1} 0 R ", image.Name, image.ObjectId);
 
                     WriteAscii(stream, string.Format(RenderUtils.Num,
-                        "{0} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {1:0.##} {2:0.##}] /Resources << /XObject << {3} >> >> /Contents {4} 0 R >>\nendobj\n",
+                        "{0} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {1:0.##} {2:0.##}] /Resources << /XObject << {3} >> /Font << /F1 {4} 0 R /F2 {5} 0 R >> >> /Contents {6} 0 R >>\nendobj\n",
                         pageObject.PageObjectId,
                         PageWidthPt,
                         PageHeightPt,
                         xobjects.ToString(),
+                        regularFontObjectId,
+                        boldFontObjectId,
                         pageObject.ContentObjectId));
 
                     foreach (PdfImageXObject image in pageObject.Images)
@@ -358,6 +372,7 @@ namespace EclipsePlanReport
             {
                 sb.AppendFormat(RenderUtils.Num, "q {0:0.######} 0 0 -{1:0.######} 0 {2:0.###} cm\n", scaleX, scaleY, PageHeightPt);
                 WriteDrawing(page.Drawing);
+                WriteTextLayer(page.TextRuns);
                 sb.Append("Q\n");
                 return sb.ToString();
             }
@@ -432,6 +447,66 @@ namespace EclipsePlanReport
                 Geometry textGeometry = drawing.GlyphRun.BuildGeometry();
                 WriteGeometryPath(textGeometry);
                 sb.Append("f\n");
+            }
+
+            private void WriteTextLayer(List<VectorPdfTextRun> textRuns)
+            {
+                if (textRuns == null || textRuns.Count == 0)
+                    return;
+
+                sb.Append("q\nBT\n3 Tr\n");
+                foreach (VectorPdfTextRun run in textRuns)
+                {
+                    if (run == null || string.IsNullOrWhiteSpace(run.Text) || run.FontSize <= 0)
+                        continue;
+
+                    string encodedText = EscapeWinAnsiString(run.Text);
+                    if (string.IsNullOrEmpty(encodedText))
+                        continue;
+
+                    double baselineY = run.Y + run.FontSize * 0.82;
+                    sb.AppendFormat(RenderUtils.Num,
+                        "/{0} {1:0.###} Tf\n1 0 0 1 {2:0.###} {3:0.###} Tm\n({4}) Tj\n",
+                        run.Bold ? "F2" : "F1",
+                        run.FontSize,
+                        run.X,
+                        baselineY,
+                        encodedText);
+                }
+                sb.Append("ET\nQ\n");
+            }
+
+            private string EscapeWinAnsiString(string text)
+            {
+                byte[] bytes;
+                try
+                {
+                    bytes = Encoding.GetEncoding(1252).GetBytes(text ?? "");
+                }
+                catch
+                {
+                    bytes = Encoding.ASCII.GetBytes(text ?? "");
+                }
+
+                StringBuilder escaped = new StringBuilder(bytes.Length);
+                foreach (byte b in bytes)
+                {
+                    if (b == (byte)'(' || b == (byte)')' || b == (byte)'\\')
+                    {
+                        escaped.Append('\\');
+                        escaped.Append((char)b);
+                    }
+                    else if (b >= 32 && b <= 126)
+                    {
+                        escaped.Append((char)b);
+                    }
+                    else
+                    {
+                        escaped.Append('\\');
+                        escaped.Append(Convert.ToString(b, 8).PadLeft(3, '0'));
+                    }
+                }
+                return escaped.ToString();
             }
 
             private void WriteImage(ImageDrawing drawing)
