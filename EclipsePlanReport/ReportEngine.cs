@@ -138,7 +138,8 @@ namespace EclipsePlanReport
                         {
                             string dvhPath = Path.Combine(runFolder, RenderUtils.MakeFilenameValid(string.Format("{0}_{1}_03_DVH.png", patient.Id, planItemId)));
                             List<string> dvhPages = DvhRenderer.RenderDvhPages(patient, planningItem, ss, template, request.SelectedDvhStructureIds, dvhPath, log);
-                            generatedImagePaths.AddRange(dvhPages.Where(File.Exists));
+                            foreach (string dvhPage in dvhPages)
+                                AddIfExists(generatedImagePaths, dvhPage);
                             if (dvhPages.Count == 0)
                                 log("  Kein DVH erstellt (keine passenden Strukturen).");
                         }

@@ -200,8 +200,7 @@ namespace EclipsePlanReport
             }
 
             RenderUtils.SaveVisualAsPng(visual, width, height, filename);
-            if (File.Exists(filename))
-                outputFiles.Add(filename);
+            AddIfRendered(outputFiles, filename);
 
             // Dosisstatistik auf eigene(n) Seite(n) - unabhaengig vom DVH-Plot,
             // damit die Tabelle die volle Seitenbreite/-hoehe nutzen kann.
@@ -257,9 +256,15 @@ namespace EclipsePlanReport
                 }
 
                 RenderUtils.SaveVisualAsPng(statsVisual, width, height, statsFilename);
-                if (File.Exists(statsFilename))
-                    outputFiles.Add(statsFilename);
+                AddIfRendered(outputFiles, statsFilename);
             }
+        }
+
+        private static void AddIfRendered(List<string> outputFiles, string filename)
+        {
+            VectorPdfPage page;
+            if (File.Exists(filename) || VectorPdfPageStore.TryGet(filename, out page))
+                outputFiles.Add(filename);
         }
 
         private static string GetTypeText(PlanningItem planningItem)
