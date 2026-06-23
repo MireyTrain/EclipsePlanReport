@@ -224,8 +224,9 @@ namespace EclipsePlanReport
                 double cyMm = DotFromOrigin(center, image, image.YDirection);
                 double czMm = DotFromOrigin(center, image, image.ZDirection);
 
-                // Position relativ zum User-Origin in der Eclipse-Patientenlagerung.
-                VVector userRel = RenderUtils.ComputeEclipseUserCoordinatesCm(image, center, positionCode);
+                // Bild-/Schichtkoordinaten relativ zum User-Origin. Diese Anzeige folgt
+                // den Eclipse-Bildachsen, nicht der lat/lng/vrt-Feldtabelle.
+                VVector userRel = RenderUtils.ComputeEclipseImageCoordinatesCm(image, center, positionCode);
 
                 // --- transversal (oben links) ---
                 Rect transContent = DrawPlanarView(dc, q1,

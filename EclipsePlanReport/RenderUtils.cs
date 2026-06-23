@@ -514,6 +514,23 @@ namespace EclipsePlanReport
                 Dot(rel, zAxis) / 10.0);
         }
 
+        public static VVector ComputeEclipseImageCoordinatesCm(Image image, VVector point, string patientPositionCode)
+        {
+            VVector userOrigin = GetImageUserOriginOrOrigin(image);
+            VVector rel = new VVector(
+                point.x - userOrigin.x,
+                point.y - userOrigin.y,
+                point.z - userOrigin.z);
+
+            VVector xAxis, yAxis, zAxis;
+            GetEclipseImageCoordinateAxes(patientPositionCode, out xAxis, out yAxis, out zAxis);
+
+            return new VVector(
+                Dot(rel, xAxis) / 10.0,
+                Dot(rel, yAxis) / 10.0,
+                Dot(rel, zAxis) / 10.0);
+        }
+
         public static double ComputeEclipseSliceZcm(Image image, int sliceZ, string patientPositionCode)
         {
             if (image == null)
@@ -524,7 +541,7 @@ namespace EclipsePlanReport
                 image.Origin.y + sliceZ * image.ZRes * image.ZDirection.y,
                 image.Origin.z + sliceZ * image.ZRes * image.ZDirection.z);
 
-            return ComputeEclipseUserCoordinatesCm(image, sliceOrigin, patientPositionCode).z;
+            return ComputeEclipseImageCoordinatesCm(image, sliceOrigin, patientPositionCode).z;
         }
 
         private static VVector GetImageUserOriginOrOrigin(Image image)
@@ -560,6 +577,28 @@ namespace EclipsePlanReport
                     xAxis = GetPatientDirectionVector("L");
                     yAxis = GetPatientDirectionVector("H");
                     zAxis = GetPatientDirectionVector("A");
+                    return;
+            }
+        }
+
+        private static void GetEclipseImageCoordinateAxes(string patientPositionCode, out VVector xAxis, out VVector yAxis, out VVector zAxis)
+        {
+            switch (patientPositionCode)
+            {
+                case "FFDR":
+                    xAxis = GetPatientDirectionVector("A");
+                    yAxis = GetPatientDirectionVector("R");
+                    zAxis = GetPatientDirectionVector("F");
+                    return;
+                case "FFDL":
+                    xAxis = GetPatientDirectionVector("P");
+                    yAxis = GetPatientDirectionVector("L");
+                    zAxis = GetPatientDirectionVector("F");
+                    return;
+                default:
+                    xAxis = GetPatientDirectionVector("L");
+                    yAxis = GetPatientDirectionVector("P");
+                    zAxis = GetPatientDirectionVector("H");
                     return;
             }
         }
