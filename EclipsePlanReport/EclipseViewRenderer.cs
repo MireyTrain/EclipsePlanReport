@@ -164,6 +164,7 @@ namespace EclipsePlanReport
                 sagSegs.Add(new StructureSegments { Color = color, Segments = MeshSlicer.Slice(structure, center, image.XDirection) });
                 froSegs.Add(new StructureSegments { Color = color, Segments = MeshSlicer.Slice(structure, center, image.YDirection) });
             }
+            string doseInfoLabel = BuildDoseInfoLabel(planningItem, structureSet, target, log);
 
             // ---- Seite zeichnen ----
             int width = RenderUtils.PageWidthPx;
@@ -234,6 +235,8 @@ namespace EclipsePlanReport
                     transDisplay,
                     (innerDc, penScale) =>
                     {
+                        DrawStructureSegments(innerDc, transSegs, penScale,
+                            p => new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.YDirection)));
                         if (transDose != null)
                         {
                             DrawIsodoses(innerDc, transDose, planningItem, template, penScale, (u, v) =>
@@ -242,12 +245,10 @@ namespace EclipsePlanReport
                                 return new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.YDirection));
                             });
                         }
-                        DrawStructureSegments(innerDc, transSegs, penScale,
-                            p => new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.YDirection)));
                         DrawCrosshair(innerDc, cxMm, cyMm, image.XSize * image.XRes, image.YSize * image.YRes, penScale, SagPlaneColor, FroPlaneColor);
                     },
                     string.Format(culture, "Z: {0:+0.00;-0.00;0.00} cm", SliceRenderer.ComputeEclipseZcm(image, zc, positionCode)),
-                    BuildMaxDoseLabel(transDose),
+                    doseInfoLabel,
                     typeface,
                     RenderUtils.ManikinView.Transversal);
 
@@ -259,6 +260,8 @@ namespace EclipsePlanReport
                     sagDisplay,
                     (innerDc, penScale) =>
                     {
+                        DrawStructureSegments(innerDc, sagSegs, penScale,
+                            p => new Point(DotFromOrigin(p, image, image.YDirection), DotFromOrigin(p, image, image.ZDirection)));
                         if (sagDose != null)
                         {
                             DrawIsodoses(innerDc, sagDose, planningItem, template, penScale, (u, v) =>
@@ -267,12 +270,10 @@ namespace EclipsePlanReport
                                 return new Point(DotFromOrigin(p, image, image.YDirection), DotFromOrigin(p, image, image.ZDirection));
                             });
                         }
-                        DrawStructureSegments(innerDc, sagSegs, penScale,
-                            p => new Point(DotFromOrigin(p, image, image.YDirection), DotFromOrigin(p, image, image.ZDirection)));
                         DrawCrosshair(innerDc, cyMm, czMm, image.YSize * image.YRes, image.ZSize * image.ZRes, penScale, FroPlaneColor, TransPlaneColor);
                     },
                     string.Format(culture, "X: {0:+0.00;-0.00;0.00} cm", userRel.x),
-                    BuildMaxDoseLabel(sagDose),
+                    doseInfoLabel,
                     typeface,
                     RenderUtils.ManikinView.Sagittal);
 
@@ -284,6 +285,8 @@ namespace EclipsePlanReport
                     froDisplay,
                     (innerDc, penScale) =>
                     {
+                        DrawStructureSegments(innerDc, froSegs, penScale,
+                            p => new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.ZDirection)));
                         if (froDose != null)
                         {
                             DrawIsodoses(innerDc, froDose, planningItem, template, penScale, (u, v) =>
@@ -292,12 +295,10 @@ namespace EclipsePlanReport
                                 return new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.ZDirection));
                             });
                         }
-                        DrawStructureSegments(innerDc, froSegs, penScale,
-                            p => new Point(DotFromOrigin(p, image, image.XDirection), DotFromOrigin(p, image, image.ZDirection)));
                         DrawCrosshair(innerDc, cxMm, czMm, image.XSize * image.XRes, image.ZSize * image.ZRes, penScale, SagPlaneColor, TransPlaneColor);
                     },
                     string.Format(culture, "Y: {0:+0.00;-0.00;0.00} cm", userRel.y),
-                    BuildMaxDoseLabel(froDose),
+                    doseInfoLabel,
                     typeface,
                     RenderUtils.ManikinView.Frontal);
 
@@ -420,14 +421,79 @@ namespace EclipsePlanReport
             return result;
         }
 
-        private static string BuildMaxDoseLabel(double[,] doseMatrix)
+        private static string BuildDoseInfoLabel(PlanningItem planningItem, StructureSet structureSet, Structure fallbackTarget, Action<string> log)
         {
-            if (doseMatrix == null)
+            if (planningItem == null || structureSet == null)
                 return "";
-            double max = 0;
-            foreach (double v in doseMatrix)
-                if (v > max) max = v;
-            return max > 0 ? string.Format(RenderUtils.Num, "Max: {0:F2} Gy", max) : "";
+
+            var lines = new List<string>();
+
+            Structure body = FindBodyStructure(structureSet);
+            DVHData bodyDvh = TryGetDvh(planningItem, body, "BODY", log);
+            if (bodyDvh != null)
+                lines.Add(string.Format(RenderUtils.Num, "Bodymax: {0:F2} Gy", bodyDvh.MaxDose.Dose));
+
+            Structure normalizedTarget = FindNormalizedTargetStructure(planningItem as PlanSetup, structureSet, fallbackTarget);
+            DVHData targetDvh = TryGetDvh(planningItem, normalizedTarget, "normiertes PTV", log);
+            if (targetDvh != null)
+            {
+                lines.Add(string.Format(RenderUtils.Num, "1.Max: {0:F2} Gy", targetDvh.MaxDose.Dose));
+                lines.Add(string.Format(RenderUtils.Num, "2.Min: {0:F2} Gy", targetDvh.MinDose.Dose));
+                lines.Add(string.Format(RenderUtils.Num, "3.Mittel: {0:F2} Gy", targetDvh.MeanDose.Dose));
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        private static Structure FindBodyStructure(StructureSet structureSet)
+        {
+            if (structureSet == null)
+                return null;
+
+            return structureSet.Structures.FirstOrDefault(s =>
+                !s.IsEmpty &&
+                (s.Id.ToLowerInvariant().StartsWith("body") ||
+                 s.Id.ToLowerInvariant().StartsWith("körper") ||
+                 s.Id.ToLowerInvariant().StartsWith("koerper") ||
+                 s.Id.ToLowerInvariant().StartsWith("outer")));
+        }
+
+        private static Structure FindNormalizedTargetStructure(PlanSetup planSetup, StructureSet structureSet, Structure fallbackTarget)
+        {
+            if (planSetup != null && structureSet != null && !string.IsNullOrEmpty(planSetup.TargetVolumeID))
+            {
+                Structure target = structureSet.Structures.FirstOrDefault(s =>
+                    !s.IsEmpty && s.Id.Equals(planSetup.TargetVolumeID, StringComparison.OrdinalIgnoreCase));
+                if (target != null)
+                    return target;
+            }
+
+            return fallbackTarget != null && !fallbackTarget.IsEmpty ? fallbackTarget : null;
+        }
+
+        private static DVHData TryGetDvh(PlanningItem planningItem, Structure structure, string label, Action<string> log)
+        {
+            if (planningItem == null || structure == null || structure.IsEmpty)
+                return null;
+
+            try
+            {
+                DVHData dvh = planningItem.GetDVHCumulativeData(
+                    structure,
+                    DoseValuePresentation.Absolute,
+                    VolumePresentation.Relative,
+                    0.1);
+
+                if (dvh != null && dvh.CurveData != null && dvh.CurveData.Length > 0)
+                    return dvh;
+            }
+            catch (Exception e)
+            {
+                if (log != null)
+                    log(string.Format("  Ansichtsseite: DVH-Statistik fuer {0} ({1}) nicht verfuegbar: {2}", label, structure.Id, e.Message));
+            }
+
+            return null;
         }
 
         private enum PlaneAxis { Transversal, Sagittal, Frontal }

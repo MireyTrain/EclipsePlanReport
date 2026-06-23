@@ -492,6 +492,18 @@ namespace EclipsePlanReport
                 return p;
             };
 
+            int contourSegmentCount = 0;
+            if (structureSet != null)
+            {
+                foreach (var structure in GetSliceContourStructures(structureSet, sliceTarget, template, displayStructureIds, sliceZ))
+                    contourSegmentCount += DrawStructureContours(dc, structure, image, sliceZ, viewBounds, drawScale);
+            }
+            if (contourSegmentCount == 0 && log != null)
+            {
+                string targetId = sliceTarget != null ? sliceTarget.Id : "(kein Ziel)";
+                log(string.Format("  Hinweis: keine Anzeige-Kontur auf CT-Schicht {0} gezeichnet (Schicht-Ziel: {1}).", sliceZ, targetId));
+            }
+
             foreach (var iso in template.Isodoses)
             {
                 double doseGy = ResolveIsodoseGy(iso, planningItem);
@@ -505,18 +517,6 @@ namespace EclipsePlanReport
                 double thickness = Math.Max(0.6, iso.Thickness) / drawScale;
                 Pen pen = new Pen(new SolidColorBrush(iso.Color), thickness);
                 RenderUtils.DrawIsoLines(dc, doseData, doseGy, pen, mapDoseToView);
-            }
-
-            int contourSegmentCount = 0;
-            if (structureSet != null)
-            {
-                foreach (var structure in GetSliceContourStructures(structureSet, sliceTarget, template, displayStructureIds, sliceZ))
-                    contourSegmentCount += DrawStructureContours(dc, structure, image, sliceZ, viewBounds, drawScale);
-            }
-            if (contourSegmentCount == 0 && log != null)
-            {
-                string targetId = sliceTarget != null ? sliceTarget.Id : "(kein Ziel)";
-                log(string.Format("  Hinweis: keine Anzeige-Kontur auf CT-Schicht {0} gezeichnet (Schicht-Ziel: {1}).", sliceZ, targetId));
             }
 
             if (bodyClip != null)
