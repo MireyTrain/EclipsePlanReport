@@ -117,7 +117,47 @@ namespace EclipsePlanReport
             if (body == null || body.IsEmpty)
                 return null;
 
-            Rect bodyBounds = GetBoundingBox(body, image, sliceZ);
+            Rect bodyBounds;
+            if (!TryGetBoundingBox(body, image, sliceZ, out bodyBounds))
+                return null;
+
+            return BuildBodyViewBounds(bodyBounds, image);
+        }
+
+        /// <summary>Gemeinsames Sichtfenster fuer eine komplette Schichtserie, damit Massstab und Lineale konstant bleiben.</summary>
+        public static Rect? GetSliceSeriesBodyViewBounds(Structure body, Image image, IEnumerable<int> sliceIndices)
+        {
+            if (body == null || body.IsEmpty || image == null || sliceIndices == null)
+                return null;
+
+            bool hasBounds = false;
+            Rect seriesBounds = Rect.Empty;
+            foreach (int sliceZ in sliceIndices)
+            {
+                Rect bodyBounds;
+                if (!TryGetBoundingBox(body, image, sliceZ, out bodyBounds))
+                    continue;
+
+                if (!hasBounds)
+                {
+                    seriesBounds = bodyBounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    double minX = Math.Min(seriesBounds.X, bodyBounds.X);
+                    double minY = Math.Min(seriesBounds.Y, bodyBounds.Y);
+                    double maxX = Math.Max(seriesBounds.Right, bodyBounds.Right);
+                    double maxY = Math.Max(seriesBounds.Bottom, bodyBounds.Bottom);
+                    seriesBounds = new Rect(minX, minY, maxX - minX, maxY - minY);
+                }
+            }
+
+            return hasBounds ? BuildBodyViewBounds(seriesBounds, image) : (Rect?)null;
+        }
+
+        private static Rect? BuildBodyViewBounds(Rect bodyBounds, Image image)
+        {
             if (bodyBounds.IsEmpty || bodyBounds.Width <= 0 || bodyBounds.Height <= 0)
                 return null;
 
@@ -145,9 +185,20 @@ namespace EclipsePlanReport
 
         private static Rect GetBoundingBox(Structure body, Image image, int sliceZ)
         {
+            Rect bounds;
+            return TryGetBoundingBox(body, image, sliceZ, out bounds)
+                ? bounds
+                : new Rect(0, 0, image.XSize, image.YSize);
+        }
+
+        private static bool TryGetBoundingBox(Structure body, Image image, int sliceZ, out Rect bounds)
+        {
             var contours = body.GetContoursOnImagePlane(sliceZ);
             if (!contours.Any())
-                return new Rect(0, 0, image.XSize, image.YSize);
+            {
+                bounds = Rect.Empty;
+                return false;
+            }
 
             double minX = double.MaxValue, maxX = double.MinValue;
             double minY = double.MaxValue, maxY = double.MinValue;
@@ -171,9 +222,13 @@ namespace EclipsePlanReport
             maxY = Math.Min(image.YSize - 1, maxY + padding);
 
             if (maxX <= minX || maxY <= minY)
-                return new Rect(0, 0, image.XSize, image.YSize);
+            {
+                bounds = Rect.Empty;
+                return false;
+            }
 
-            return new Rect(minX, minY, maxX - minX, maxY - minY);
+            bounds = new Rect(minX, minY, maxX - minX, maxY - minY);
+            return true;
         }
 
         // ---------- Seitenrendering (Eclipse-Schichtdruck-Stil) ----------

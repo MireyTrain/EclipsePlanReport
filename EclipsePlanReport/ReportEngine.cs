@@ -259,6 +259,7 @@ namespace EclipsePlanReport
             sliceIndices = sliceIndices
                 .OrderByDescending(z => SliceRenderer.ComputeEclipseZcm(ss.Image, z))
                 .ToList();
+            var seriesViewBounds = SliceRenderer.GetSliceSeriesBodyViewBounds(body, ss.Image, sliceIndices);
 
             for (int i = 0; i < sliceIndices.Count; i++)
             {
@@ -274,8 +275,7 @@ namespace EclipsePlanReport
                 {
                     sliceContext.PageNumber = i + 1;
                     sliceContext.PageCount = sliceIndices.Count;
-                    var sliceViewBounds = SliceRenderer.GetSliceBodyViewBounds(body, ss.Image, z);
-                    SliceRenderer.RenderSlicePage(ss.Image, z, ss, planningItem, template, target, displayStructureIds, body, slicePath, sliceViewBounds, sliceContext, log);
+                    SliceRenderer.RenderSlicePage(ss.Image, z, ss, planningItem, template, target, displayStructureIds, body, slicePath, seriesViewBounds, sliceContext, log);
                     AddIfExists(generatedImagePaths, slicePath);
                 }
                 catch (Exception e)
