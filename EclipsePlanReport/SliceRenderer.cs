@@ -588,15 +588,10 @@ namespace EclipsePlanReport
                 image.Origin.y + sliceZ * image.ZRes * image.ZDirection.y,
                 image.Origin.z + sliceZ * image.ZRes * image.ZDirection.z);
 
-            double zUserMm =
-                (sliceOrigin.x - userOrigin.x) * image.ZDirection.x +
-                (sliceOrigin.y - userOrigin.y) * image.ZDirection.y +
-                (sliceOrigin.z - userOrigin.z) * image.ZDirection.z;
-
-            double zDirZ = image.ZDirection.z;
-            double eclipseFactor = -Math.Sign(zDirZ == 0 ? 1.0 : zDirZ);
-
-            return zUserMm / 10.0 * eclipseFactor;
+            // Eclipse zeigt die transversale Z-Position als Patienten-Superior/Inferior-
+            // Koordinate relativ zum User-Origin. Die gespeicherte Slice-Richtung darf
+            // das Vorzeichen nicht drehen, sonst erscheinen HFS-Schichten invertiert.
+            return (sliceOrigin.z - userOrigin.z) / 10.0;
         }
 
         private static VVector GetUserOriginCm(Image image)

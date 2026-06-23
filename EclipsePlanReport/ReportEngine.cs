@@ -256,6 +256,9 @@ namespace EclipsePlanReport
                 sliceIndices.Add(z);
             if (!sliceIndices.Contains(lastSlice))
                 sliceIndices.Add(lastSlice);
+            sliceIndices = sliceIndices
+                .OrderBy(z => SliceRenderer.ComputeEclipseZcm(ss.Image, z))
+                .ToList();
 
             for (int i = 0; i < sliceIndices.Count; i++)
             {
@@ -285,8 +288,8 @@ namespace EclipsePlanReport
 
             log(string.Format("  {0} CT-Schichten gedruckt (Z {1:+0.00;-0.00;0.00} bis {2:+0.00;-0.00;0.00} cm).",
                 sliceIndices.Count,
-                SliceRenderer.ComputeEclipseZcm(ss.Image, firstSlice),
-                SliceRenderer.ComputeEclipseZcm(ss.Image, lastSlice)));
+                SliceRenderer.ComputeEclipseZcm(ss.Image, sliceIndices.First()),
+                SliceRenderer.ComputeEclipseZcm(ss.Image, sliceIndices.Last())));
         }
 
         private static void AddIfExists(List<string> paths, string path)
