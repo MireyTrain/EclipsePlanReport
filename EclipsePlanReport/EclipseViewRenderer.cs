@@ -12,7 +12,7 @@ namespace EclipsePlanReport
 {
     /// <summary>
     /// Nachgebaute Eclipse-Planungsansicht (Referenz: Eclipse-Druck "Planungsansicht"):
-    /// 2x2-Raster mit transversal / sagittal / frontal durch das Zentrum der Zielstruktur
+    /// 2x2-Raster mit transversal / sagittal / frontal durch das Plan-Isozentrum
     /// plus Plan-Info-Panel im Stil des Eclipse-Dosis-Tabs. Mit Isodosen, Strukturkonturen
     /// (Mesh-Schnitt auf allen Ebenen), farbcodierten Schnittebenen, Linealen, Max-Dosis,
     /// Positionslabels und Orientierungsfigur.
@@ -44,18 +44,32 @@ namespace EclipsePlanReport
             {
             }
 
-            // Zentrum der Zielstruktur (Fallback: Bildmitte)
+            // Point of View: bevorzugt Plan-Isozentrum, sonst Zielstrukturmitte, sonst Bildmitte.
             VVector center;
-            try
+            string centerSource;
+            if (TryGetPlanIsocenter(planningItem, out center))
             {
-                center = (target != null && !target.IsEmpty)
-                    ? target.CenterPoint
-                    : GetImageCenter(image);
+                centerSource = "Isozentrum";
             }
-            catch
+            else
             {
-                center = GetImageCenter(image);
+                try
+                {
+                    center = (target != null && !target.IsEmpty)
+                        ? target.CenterPoint
+                        : GetImageCenter(image);
+                    centerSource = target != null && !target.IsEmpty
+                        ? "Zielstruktur " + target.Id
+                        : "Bildmitte";
+                }
+                catch
+                {
+                    center = GetImageCenter(image);
+                    centerSource = "Bildmitte";
+                }
             }
+            if (log != null)
+                log("  Ansichtsseite: Point of View = " + centerSource + ".");
 
             int xc = ClampIndex((int)Math.Round(DotFromOrigin(center, image, image.XDirection) / image.XRes), image.XSize);
             int yc = ClampIndex((int)Math.Round(DotFromOrigin(center, image, image.YDirection) / image.YRes), image.YSize);
@@ -1251,7 +1265,10 @@ namespace EclipsePlanReport
                 }
             }
 
-            if (target != null)
+            VVector panelIsocenter;
+            if (TryGetPlanIsocenter(planningItem, out panelIsocenter))
+                rows.Add(new KeyValuePair<string, string>("Ansicht zentriert auf", "Isozentrum"));
+            else if (target != null)
                 rows.Add(new KeyValuePair<string, string>("Ansicht zentriert auf", target.Id));
             rows.Add(new KeyValuePair<string, string>("Isodosen-Template", template.DisplayName));
 
@@ -1282,6 +1299,40 @@ namespace EclipsePlanReport
                 image.Origin.x + xMm * image.XDirection.x + yMm * image.YDirection.x + zMm * image.ZDirection.x,
                 image.Origin.y + xMm * image.XDirection.y + yMm * image.YDirection.y + zMm * image.ZDirection.y,
                 image.Origin.z + xMm * image.XDirection.z + yMm * image.YDirection.z + zMm * image.ZDirection.z);
+        }
+
+        private static bool TryGetPlanIsocenter(PlanningItem planningItem, out VVector isocenter)
+        {
+            isocenter = new VVector();
+
+            PlanSetup planSetup = planningItem as PlanSetup;
+            if (planSetup == null)
+                return false;
+
+            try
+            {
+                Beam beam = planSetup.Beams
+                    .Where(b => !b.IsSetupField)
+                    .FirstOrDefault();
+                if (beam == null)
+                    beam = planSetup.Beams.FirstOrDefault();
+                if (beam == null)
+                    return false;
+
+                isocenter = beam.IsocenterPosition;
+                return IsFinitePoint(isocenter);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsFinitePoint(VVector point)
+        {
+            return !double.IsNaN(point.x) && !double.IsInfinity(point.x) &&
+                   !double.IsNaN(point.y) && !double.IsInfinity(point.y) &&
+                   !double.IsNaN(point.z) && !double.IsInfinity(point.z);
         }
 
         /// <summary>Punkt relativ zum User-Origin in cm (DICOM-Achsen).</summary>
