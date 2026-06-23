@@ -47,6 +47,9 @@ namespace EclipsePlanReport
         private Forms.Button btnStart;
         private Forms.Button btnOpenPdf;
         private Forms.Button btnOpenFolder;
+        private Forms.Button btnTemplateUp;
+        private Forms.Button btnTemplateDown;
+        private Forms.Button btnDeleteTemplate;
 
         private static readonly string SettingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "planreport_settings.txt");
 
@@ -135,9 +138,9 @@ namespace EclipsePlanReport
             grid = new Forms.DataGridView
             {
                 Left = 12,
-                Top = 76,
+                Top = 108,
                 Width = ClientSize.Width - 12 - 520 - 12,
-                Height = 510,
+                Height = 478,
                 Anchor = Forms.AnchorStyles.Top | Forms.AnchorStyles.Bottom | Forms.AnchorStyles.Left | Forms.AnchorStyles.Right,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
@@ -167,6 +170,39 @@ namespace EclipsePlanReport
             grid.CellContentClick += Grid_CellContentClick;
             grid.SelectionChanged += (s, e) => RefreshStructurePanels();
             grid.DataError += (s, e) => { e.ThrowException = false; };
+
+            var lblTemplateTools = new Forms.Label
+            {
+                Text = "Template",
+                Left = 12,
+                Top = 82,
+                Width = 66,
+                Height = 20
+            };
+            btnTemplateUp = new Forms.Button
+            {
+                Text = "Hoch",
+                Left = 84,
+                Top = 78,
+                Width = 68,
+                Height = 24
+            };
+            btnTemplateDown = new Forms.Button
+            {
+                Text = "Runter",
+                Left = 158,
+                Top = 78,
+                Width = 72,
+                Height = 24
+            };
+            btnDeleteTemplate = new Forms.Button
+            {
+                Text = "Loeschen",
+                Left = 236,
+                Top = 78,
+                Width = 86,
+                Height = 24
+            };
 
             // Struktur-Panels rechts
             int panelLeft = ClientSize.Width - 520;
@@ -269,6 +305,9 @@ namespace EclipsePlanReport
             btnDvhRecommended.Click += (s, e) => ApplyRecommendedDvh();
             btnDvhAll.Click += (s, e) => SetAllDvhChecks(true);
             btnDvhNone.Click += (s, e) => SetAllDvhChecks(false);
+            btnTemplateUp.Click += (s, e) => MoveSelectedTemplate(-1);
+            btnTemplateDown.Click += (s, e) => MoveSelectedTemplate(1);
+            btnDeleteTemplate.Click += (s, e) => DeleteSelectedTemplate();
 
             // Protokoll + Fortschritt + Aktionen
             txtLog = new Forms.TextBox
@@ -344,6 +383,7 @@ namespace EclipsePlanReport
                 lblOut, txtOutputDir, btnBrowse,
                 lblFont, numFontScale, chkDarkMode,
                 lblPatientInfo,
+                lblTemplateTools, btnTemplateUp, btnTemplateDown, btnDeleteTemplate,
                 grid,
                 lblDisplayTitle, clbDisplay, btnDisplayRecommended, btnDisplayAll, btnDisplayNone,
                 lblDvhTitle, clbDvh, btnDvhRecommended, btnDvhAll, btnDvhNone,
@@ -740,6 +780,144 @@ namespace EclipsePlanReport
             return template != null ? template.Id : (templates.FirstOrDefault() != null ? templates.First().Id : "");
         }
 
+        private Forms.DataGridViewRow GetCurrentPlanRow()
+        {
+            if (grid.SelectedRows.Count > 0)
+                return grid.SelectedRows[0];
+            return grid.CurrentRow;
+        }
+
+        private ReportTemplate GetSelectedTemplateForCurrentRow(out PlanRequest plan)
+        {
+            plan = null;
+            Forms.DataGridViewRow row = GetCurrentPlanRow();
+            if (row == null)
+                return null;
+
+            plan = row.Tag as PlanRequest;
+            if (plan == null)
+                return null;
+
+            string displayName = Convert.ToString(row.Cells["TemplateId"].Value);
+            string templateId = plan.TemplateId ?? "";
+            ReportTemplate template = templates.FirstOrDefault(t => t.Id.Equals(templateId, StringComparison.OrdinalIgnoreCase));
+            if (template == null && !string.IsNullOrEmpty(displayName))
+                template = templates.FirstOrDefault(t => t.DisplayName.Equals(displayName, StringComparison.OrdinalIgnoreCase));
+            return template;
+        }
+
+        private void RefreshTemplateCells()
+        {
+            foreach (Forms.DataGridViewRow gridRow in grid.Rows)
+            {
+                var rowPlan = gridRow.Tag as PlanRequest;
+                if (rowPlan == null)
+                    continue;
+
+                List<string> choices = GetTemplateChoicesFor(rowPlan);
+                string displayName = GetTemplateDisplayName(rowPlan.TemplateId);
+                if (choices.Count > 0 && !choices.Contains(displayName, StringComparer.OrdinalIgnoreCase))
+                {
+                    displayName = choices[0];
+                    rowPlan.TemplateId = GetTemplateIdByDisplayName(displayName);
+                }
+                if (choices.Count == 0)
+                    displayName = "";
+
+                var templateCell = (Forms.DataGridViewComboBoxCell)gridRow.Cells["TemplateId"];
+                templateCell.DataSource = null;
+                templateCell.DataSource = choices;
+                templateCell.Value = displayName;
+                gridRow.Cells["EditIsodoses"].Value = GetIsodoseButtonText(rowPlan);
+            }
+        }
+
+        private void MoveSelectedTemplate(int direction)
+        {
+            PlanRequest plan;
+            ReportTemplate template = GetSelectedTemplateForCurrentRow(out plan);
+            if (template == null)
+            {
+                Forms.MessageBox.Show(this, "Bitte zuerst eine Planzeile mit Template auswaehlen.", "Eclipse PlanReport", Forms.MessageBoxButtons.OK, Forms.MessageBoxIcon.Information);
+                return;
+            }
+
+            int index = templates.FindIndex(t => t.Id.Equals(template.Id, StringComparison.OrdinalIgnoreCase));
+            int newIndex = index + direction;
+            if (index < 0 || newIndex < 0 || newIndex >= templates.Count)
+                return;
+
+            List<ReportTemplate> updated = templates.ToList();
+            ReportTemplate moved = updated[index];
+            updated[index] = updated[newIndex];
+            updated[newIndex] = moved;
+
+            if (!TemplateRepository.SaveAll(updated, Log))
+                return;
+
+            templates = updated;
+            RefreshTemplateCells();
+            Log(string.Format("Template '{0}' verschoben.", template.DisplayName));
+        }
+
+        private void DeleteSelectedTemplate()
+        {
+            PlanRequest plan;
+            ReportTemplate template = GetSelectedTemplateForCurrentRow(out plan);
+            if (template == null)
+            {
+                Forms.MessageBox.Show(this, "Bitte zuerst eine Planzeile mit Template auswaehlen.", "Eclipse PlanReport", Forms.MessageBoxButtons.OK, Forms.MessageBoxIcon.Information);
+                return;
+            }
+
+            if (templates.Count <= 1)
+            {
+                Forms.MessageBox.Show(this, "Das letzte Template kann nicht geloescht werden.", "Eclipse PlanReport", Forms.MessageBoxButtons.OK, Forms.MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!template.IsRelative && templates.Count(t => !t.IsRelative) <= 1)
+            {
+                Forms.MessageBox.Show(this, "Das letzte absolute Template kann nicht geloescht werden, weil Summenplaene absolute Isodosen benoetigen.", "Eclipse PlanReport", Forms.MessageBoxButtons.OK, Forms.MessageBoxIcon.Warning);
+                return;
+            }
+
+            Forms.DialogResult result = Forms.MessageBox.Show(this,
+                string.Format("Template '{0}' wirklich loeschen?", template.DisplayName),
+                "Eclipse PlanReport",
+                Forms.MessageBoxButtons.YesNo,
+                Forms.MessageBoxIcon.Question,
+                Forms.MessageBoxDefaultButton.Button2);
+            if (result != Forms.DialogResult.Yes)
+                return;
+
+            List<ReportTemplate> updated = templates
+                .Where(t => !t.Id.Equals(template.Id, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (!TemplateRepository.SaveAll(updated, Log))
+                return;
+
+            templates = updated;
+            foreach (PlanRequest request in planRequests)
+            {
+                if (!string.Equals(request.TemplateId, template.Id, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                ReportTemplate replacement = templates.FirstOrDefault(t => !request.IsPlanSum || !t.IsRelative)
+                    ?? templates.FirstOrDefault();
+                request.TemplateId = replacement != null ? replacement.Id : "";
+                request.CustomIsodoses = null;
+                if (!request.DisplaySelectionCustomized)
+                    request.SelectedDisplayStructureIds = BuildRecommendedDisplayStructureIds(request, templates);
+                if (!request.DvhSelectionCustomized)
+                    request.SelectedDvhStructureIds = DvhRecommendation.BuildRecommendedDvhStructureIds(request, templates);
+            }
+
+            RefreshTemplateCells();
+            RefreshStructurePanels();
+            Log(string.Format("Template '{0}' geloescht.", template.DisplayName));
+        }
+
         private void Grid_CellValueChanged(object sender, Forms.DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0)
@@ -860,15 +1038,7 @@ namespace EclipsePlanReport
             templates.RemoveAll(t => t.Id.Equals(newTemplate.Id, StringComparison.OrdinalIgnoreCase));
             templates.Add(newTemplate);
 
-            // Template-Auswahllisten aller Zeilen auffrischen und neues Template setzen
-            foreach (Forms.DataGridViewRow gridRow in grid.Rows)
-            {
-                var rowPlan = gridRow.Tag as PlanRequest;
-                if (rowPlan == null)
-                    continue;
-                var templateCell = (Forms.DataGridViewComboBoxCell)gridRow.Cells["TemplateId"];
-                templateCell.DataSource = GetTemplateChoicesFor(rowPlan);
-            }
+            RefreshTemplateCells();
 
             if (!plan.IsPlanSum || !newTemplate.IsRelative)
             {

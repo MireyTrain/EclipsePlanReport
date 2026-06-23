@@ -363,6 +363,8 @@ namespace EclipsePlanReport
                 return templates.FirstOrDefault(t => RenderUtils.NormalizeForMatch(t.Id).Contains("pcagrp3"));
             if (normalizedPlanId.Contains("15") && normalizedPlanId.Contains("4"))
                 return templates.FirstOrDefault(t => RenderUtils.NormalizeForMatch(t.Id).Contains("mamma") && RenderUtils.NormalizeForMatch(t.Id).Contains("154"));
+            if (normalizedPlanId.Contains("15") && normalizedPlanId.Contains("5"))
+                return templates.FirstOrDefault(t => RenderUtils.NormalizeForMatch(t.Id).Contains("mamma") && RenderUtils.NormalizeForMatch(t.Id).Contains("155"));
             if (normalizedPlanId.Contains("16") && normalizedPlanId.Contains("4"))
                 return templates.FirstOrDefault(t => RenderUtils.NormalizeForMatch(t.Id).Contains("mamma") && RenderUtils.NormalizeForMatch(t.Id).Contains("164"));
             return null;

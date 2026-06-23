@@ -68,4 +68,15 @@
     <Isodose doseGy="25.000" color="#00008B" thickness="1" />
     <Isodose doseGy="15.000" color="#00FFFF" thickness="1" />
   </Template>
+
+  <Template id="Mamma Summe15+5" displayName="Mamma Summe15+5" sliceStepMm="10.0" targetPatterns="PTV*,CTV*,BOOST*" dvhPatterns="PTV*,CTV*,BOOST*,Lung_L,Lung_R,*LUNG*L*,*LUNG*R*,*LUNGE*LI*,*LUNGE*RE*,Heart,*HEART*,*HERZ*,CoronarLAD,*CORONAR*LAD*,*CORONARY*LAD*,*LAD*">
+    <Isodose color="#FF0000" thickness="1.0" doseGy="55.060" />
+    <Isodose color="#FF82AA" thickness="1.0" doseGy="52.550" />
+    <Isodose color="#FFFF00" thickness="2.0" doseGy="47.550" />
+    <Isodose color="#0000FF" thickness="1.0" doseGy="45.684" />
+    <Isodose color="#FFA500" thickness="1.0" doseGy="40.050" />
+    <Isodose color="#00FF00" thickness="2.0" doseGy="38.048" />
+    <Isodose color="#00008B" thickness="1.0" doseGy="25.000" />
+    <Isodose color="#00FFFF" thickness="1.0" doseGy="15.000" />
+  </Template>
 </ReportTemplates>

@@ -65,39 +65,20 @@ namespace EclipsePlanReport
         {
             try
             {
-                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, TemplateFileName);
+                string path = GetTemplatePath();
                 XDocument document = File.Exists(path)
                     ? XDocument.Load(path)
-                    : new XDocument(new XElement("Templates"));
+                    : new XDocument(new XElement("ReportTemplates"));
 
                 if (document.Root == null)
-                    document.Add(new XElement("Templates"));
+                    document.Add(new XElement("ReportTemplates"));
 
                 document.Root
                     .Elements("Template")
                     .Where(t => string.Equals((string)t.Attribute("id"), template.Id, StringComparison.OrdinalIgnoreCase))
                     .Remove();
 
-                var element = new XElement("Template",
-                    new XAttribute("id", template.Id),
-                    new XAttribute("displayName", template.DisplayName),
-                    new XAttribute("sliceStepMm", template.SliceStepMm.ToString("F1", CultureInfo.InvariantCulture)),
-                    new XAttribute("targetPatterns", string.Join(",", template.TargetPatterns)),
-                    new XAttribute("dvhPatterns", string.Join(",", template.DvhPatterns)));
-
-                foreach (IsodoseLevel iso in template.Isodoses)
-                {
-                    var isoElement = new XElement("Isodose",
-                        new XAttribute("color", string.Format("#{0:X2}{1:X2}{2:X2}", iso.Color.R, iso.Color.G, iso.Color.B)),
-                        new XAttribute("thickness", iso.Thickness.ToString("F1", CultureInfo.InvariantCulture)));
-                    if (iso.DoseGy > 0)
-                        isoElement.Add(new XAttribute("doseGy", iso.DoseGy.ToString("F3", CultureInfo.InvariantCulture)));
-                    if (iso.RelativeDosePercent > 0)
-                        isoElement.Add(new XAttribute("relativeDosePercent", iso.RelativeDosePercent.ToString("F1", CultureInfo.InvariantCulture)));
-                    element.Add(isoElement);
-                }
-
-                document.Root.Add(element);
+                document.Root.Add(ToElement(template));
                 document.Save(path);
                 if (log != null)
                     log(string.Format("Template '{0}' in {1} gespeichert.", template.DisplayName, TemplateFileName));
@@ -109,6 +90,68 @@ namespace EclipsePlanReport
                     log("Template konnte nicht gespeichert werden: " + e.Message);
                 return false;
             }
+        }
+
+        /// <summary>Speichert die komplette Templateliste in der uebergebenen Reihenfolge.</summary>
+        public static bool SaveAll(IEnumerable<ReportTemplate> templates, Action<string> log)
+        {
+            try
+            {
+                List<ReportTemplate> list = templates != null
+                    ? templates.Where(t => t != null).ToList()
+                    : new List<ReportTemplate>();
+                if (list.Count == 0)
+                {
+                    if (log != null)
+                        log("Keine Templates zum Speichern vorhanden.");
+                    return false;
+                }
+
+                string path = GetTemplatePath();
+                var document = new XDocument(
+                    new XDeclaration("1.0", "utf-8", null),
+                    new XElement("ReportTemplates", list.Select(ToElement)));
+                document.Save(path);
+
+                if (log != null)
+                    log(string.Format("{0} Template(s) in {1} gespeichert.", list.Count, TemplateFileName));
+                return true;
+            }
+            catch (Exception e)
+            {
+                if (log != null)
+                    log("Templates konnten nicht gespeichert werden: " + e.Message);
+                return false;
+            }
+        }
+
+        private static string GetTemplatePath()
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, TemplateFileName);
+        }
+
+        private static XElement ToElement(ReportTemplate template)
+        {
+            var element = new XElement("Template",
+                new XAttribute("id", template.Id),
+                new XAttribute("displayName", template.DisplayName),
+                new XAttribute("sliceStepMm", template.SliceStepMm.ToString("F1", CultureInfo.InvariantCulture)),
+                new XAttribute("targetPatterns", string.Join(",", template.TargetPatterns)),
+                new XAttribute("dvhPatterns", string.Join(",", template.DvhPatterns)));
+
+            foreach (IsodoseLevel iso in template.Isodoses)
+            {
+                var isoElement = new XElement("Isodose",
+                    new XAttribute("color", string.Format("#{0:X2}{1:X2}{2:X2}", iso.Color.R, iso.Color.G, iso.Color.B)),
+                    new XAttribute("thickness", iso.Thickness.ToString("F1", CultureInfo.InvariantCulture)));
+                if (iso.DoseGy > 0)
+                    isoElement.Add(new XAttribute("doseGy", iso.DoseGy.ToString("F3", CultureInfo.InvariantCulture)));
+                if (iso.RelativeDosePercent > 0)
+                    isoElement.Add(new XAttribute("relativeDosePercent", iso.RelativeDosePercent.ToString("F1", CultureInfo.InvariantCulture)));
+                element.Add(isoElement);
+            }
+
+            return element;
         }
 
         private static List<string> SplitPatterns(string raw, string fallback)
